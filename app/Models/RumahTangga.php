@@ -18,6 +18,11 @@ class RumahTangga extends Model
         'nama_kepala_keluarga',
         'jumlah_anggota',
         'alamat',
+        // Blok V.A: pemisahan Keluarga (KK) dan Rumah Tangga (KRT)
+        'nomor_urut_keluarga',
+        'nomor_urut_rumah_tangga',
+        'identifikasi_kk_krt',
+        'nama_kepala_rumah_tangga',
     ];
 
     public function bangunan(): BelongsTo

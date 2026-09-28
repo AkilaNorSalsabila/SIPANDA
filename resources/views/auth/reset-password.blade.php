@@ -1,39 +1,47 @@
-<x-guest-layout>
-    <form method="POST" action="{{ route('password.store') }}">
+<x-guest-layout title="Reset Password">
+    <div class="text-center mb-7">
+        <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Atur Ulang Password</h1>
+        <p class="text-sm text-slate-500 mt-1.5">Buat password baru untuk akun SIPANDA-mu.</p>
+    </div>
+
+    @if ($errors->any())
+        <div class="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl">
+            <ul class="list-disc pl-4 space-y-0.5">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    <form method="POST" action="{{ route('password.store') }}" class="space-y-5">
         @csrf
 
-        <!-- Password Reset Token -->
+        {{-- Token reset password --}}
         <input type="hidden" name="token" value="{{ $request->route('token') }}">
 
-        <!-- Email Address -->
         <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email', $request->email)" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+            <label for="email" class="block text-xs font-semibold text-slate-700 mb-1.5">Email</label>
+            <input id="email" type="email" name="email" value="{{ old('email', $request->email) }}" required autofocus
+                autocomplete="username"
+                class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800
+                       focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500 transition">
         </div>
 
-        <!-- Password -->
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
-            <x-text-input id="password" class="block mt-1 w-full" type="password" name="password" required autocomplete="new-password" />
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+        <div>
+            <label for="password" class="block text-xs font-semibold text-slate-700 mb-1.5">Password Baru</label>
+            <x-password-input id="password" name="password" autocomplete="new-password" />
         </div>
 
-        <!-- Confirm Password -->
-        <div class="mt-4">
-            <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
-
-            <x-text-input id="password_confirmation" class="block mt-1 w-full"
-                                type="password"
-                                name="password_confirmation" required autocomplete="new-password" />
-
-            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
+        <div>
+            <label for="password_confirmation" class="block text-xs font-semibold text-slate-700 mb-1.5">Konfirmasi Password Baru</label>
+            <x-password-input id="password_confirmation" name="password_confirmation" autocomplete="new-password" />
         </div>
 
-        <div class="flex items-center justify-end mt-4">
-            <x-primary-button>
-                {{ __('Reset Password') }}
-            </x-primary-button>
-        </div>
+        <button type="submit"
+            class="w-full py-3 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700
+                   text-white text-sm font-semibold shadow-lg shadow-teal-600/25 active:scale-[0.99] transition">
+            Simpan Password Baru
+        </button>
     </form>
 </x-guest-layout>

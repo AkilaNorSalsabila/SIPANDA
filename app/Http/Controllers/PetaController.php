@@ -34,15 +34,12 @@ class PetaController extends Controller
                     'type' => 'Feature',
                     'geometry' => $geometry,
                     'properties' => [
-                        'id'              => $sls->id,
-                        'kode_sls'        => $sls->kode_sls,
-                        'nama_sls'        => $sls->nama_sls,
-                        'kabupaten_kota'  => $sls->kabupaten_kota,
-                        'kecamatan'       => $sls->kecamatan,
-                        'desa_kelurahan'  => $sls->desa_kelurahan,
-                        'jumlah_bangunan' => $sls->bangunan()->count(),
-                        'jumlah_kk'       => (int) $sls->bangunan()->sum('jumlah_kk'),
-                        'jumlah_usaha'    => (int) $sls->bangunan()->sum('jumlah_usaha'),
+                        'id'             => $sls->id,
+                        'kode_sls'       => $sls->kode_sls,
+                        'nama_sls'       => $sls->nama_sls,
+                        'kabupaten_kota' => $sls->kabupaten_kota,
+                        'kecamatan'      => $sls->kecamatan,
+                        'desa_kelurahan' => $sls->desa_kelurahan,
                     ],
                 ];
             })
@@ -70,6 +67,7 @@ class PetaController extends Controller
                 ],
                 'properties' => [
                     'id'             => $b->id,
+                    'sls_id'         => $b->sls_id,
                     'nomor_bangunan' => $b->nomor_bangunan,
                     'jumlah_kk'      => $b->jumlah_kk,
                     'jumlah_usaha'   => $b->jumlah_usaha,
@@ -82,11 +80,61 @@ class PetaController extends Controller
     }
 
     /**
-     * Detail lengkap 1 bangunan untuk popup peta, termasuk:
-     * - data dasar 
-     * - nama KK/usaha manual 
-     * - kalau statusnya "di luar SLS": SLS yang TERCATAT vs SLS AKTUAL
-     *   (hasil cek geometris) + jarak deviasi dalam meter
+     * Statistik 1 SLS (untuk popup saat area SLS diklik) + daftar bangunan
+     * dengan 5 standar informasi (untuk modal "Detail Statistik").
+     *
+     * Kalau kegiatan_id dikirim, statistik dihitung khusus kegiatan itu
+     * (karena tiap kegiatan punya data bangunan sendiri).
+     */
+    public function statistikSls(Request $request, Sls $sls): JsonResponse
+    {
+        $request->validate(['kegiatan_id' => ['nullable', 'exists:kegiatan,id']]);
+
+        $query = $sls->bangunan()->with(['rumahTangga', 'usaha']);
+
+        if ($request->filled('kegiatan_id')) {
+            $query->where('kegiatan_id', $request->kegiatan_id);
+        }
+
+        $bangunan = $query->get()->sortBy(fn ($b) => (int) $b->nomor_bangunan)->values();
+
+        $total = $bangunan->count();
+        $daftar = $bangunan->map(function ($b) {
+            $rt = $b->rumahTangga;
+
+            return [
+                'id'                  => $b->id,
+                'nomor_bangunan'      => $b->nomor_bangunan ?? '-',
+                'nomor_urut_rt'       => $rt->pluck('nomor_urut_rumah_tangga')->filter()->unique()->join(', ') ?: '-',
+                'nama_usaha'          => $b->usaha->pluck('nama_usaha')->filter()->join(', ') ?: '-',
+                'nama_keluarga'       => $rt->pluck('nama_kepala_keluarga')->filter()->join(', ') ?: '-',
+                'nama_rumah_tangga'   => $rt->pluck('nama_kepala_rumah_tangga')->filter()->unique()->join(', ') ?: '-',
+            ];
+        });
+
+        return response()->json([
+            'sls' => [
+                'id'             => $sls->id,
+                'kode_sls'       => $sls->kode_sls,
+                'nama_sls'       => $sls->nama_sls,
+                'kabupaten_kota' => $sls->kabupaten_kota,
+                'kecamatan'      => $sls->kecamatan,
+                'desa_kelurahan' => $sls->desa_kelurahan,
+            ],
+            'statistik' => [
+                'total_bangunan'   => $total,
+                'jumlah_usaha'     => (int) $bangunan->sum('jumlah_usaha'),
+                'keluarga_kk'      => (int) $bangunan->sum('jumlah_kk'),
+                'bangunan_lainnya' => $bangunan->filter(fn ($b) => (int) $b->jumlah_kk === 0 && (int) $b->jumlah_usaha === 0)->count(),
+            ],
+            'daftar' => $daftar,
+        ]);
+    }
+
+    /**
+     * Detail 1 bangunan untuk popup peta. Memuat 5 standar informasi:
+     * no. urut bangunan, no. urut rumah tangga, nama usaha, nama keluarga,
+     * nama rumah tangga (kosong -> "-" di sisi tampilan).
      */
     public function detailBangunan(Bangunan $bangunan): JsonResponse
     {
@@ -120,7 +168,6 @@ class PetaController extends Controller
             'latitude'        => $bangunan->latitude,
             'longitude'       => $bangunan->longitude,
 
-            // SLS yang tercatat di data (hasil import / kuesioner)
             'sls_tercatat' => $bangunan->sls ? [
                 'kode_sls'       => $bangunan->sls->kode_sls,
                 'nama_sls'       => $bangunan->sls->nama_sls,
@@ -131,21 +178,24 @@ class PetaController extends Controller
                 'nama_sls' => null,
             ] : null),
 
-            // SLS yang RIIL memuat koordinat GPS-nya (cuma diisi kalau di_luar_sls)
             'sls_aktual'  => $slsAktual,
             'jarak_meter' => $jarakMeter,
 
             'rumah_tangga' => $bangunan->rumahTangga->map(fn ($rt) => [
-                'id'                   => $rt->id,
-                'nomor_kk'             => $rt->nomorKkTersamar(),
-                'nama_kepala_keluarga' => $rt->nama_kepala_keluarga,
-                'jumlah_anggota'       => $rt->jumlah_anggota,
-            ]),
+                'id'                => $rt->id,
+                // Blok V.A kolom (8): No. Urut Rumah Tangga
+                'nomor_urut'        => $rt->nomor_urut_rumah_tangga,
+                // Blok V.A kolom (3): Nama Kepala Keluarga (KK)
+                'nama_keluarga'     => $rt->nama_kepala_keluarga,
+                // Blok V.A kolom (10): Nama Kepala Rumah Tangga (KRT), kosong -> "-"
+                'nama_rumah_tangga' => $rt->nama_kepala_rumah_tangga,
+                'jumlah_anggota'    => $rt->jumlah_anggota,
+            ])->values(),
             'usaha' => $bangunan->usaha->map(fn ($u) => [
                 'id'          => $u->id,
                 'nama_usaha'  => $u->nama_usaha,
                 'jenis_usaha' => $u->jenis_usaha,
-            ]),
+            ])->values(),
         ]);
     }
 

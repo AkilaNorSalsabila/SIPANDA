@@ -18,6 +18,7 @@
         <div class="min-h-screen bg-slate-50">
             @include('layouts.navigation')
 
+            <!-- Konten utama, digeser ke kanan seukuran sidebar di layar besar -->
             <div class="lg:ms-64">
                 <!-- Page Heading -->
                 @isset($header)

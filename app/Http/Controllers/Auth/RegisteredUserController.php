@@ -34,7 +34,7 @@ class RegisteredUserController extends Controller
             'email'    => $request->email,
             'phone'    => $request->phone,
             'password' => Hash::make($request->password),
-            'role'     => 'operator', // role default, admin bisa ubah nanti lewat menu Pengguna
+            'role'     => 'viewer',   // semua akun hasil registrasi hanya bisa melihat peta (admin hanya dari seeder)
             'status'   => 'pending',  // wajib disetujui admin dulu sebelum bisa login
         ]);
 

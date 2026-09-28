@@ -27,6 +27,12 @@ class ImportController extends Controller
         return view('import.index', compact('kegiatanList', 'riwayat'));
     }
 
+    /**
+     * Import batas_sls.geojson -> tabel sls (data dasar wilayah, dipakai
+     * bersama oleh semua kegiatan, TIDAK terikat ke satu kegiatan tertentu
+     * secara data — kolom kegiatan_id di sini cuma metadata "kegiatan mana
+     * yang memicu import ini").
+     */
     public function storeBatasSls(Request $request): RedirectResponse
     {
         $request->validate([
@@ -102,6 +108,15 @@ class ImportController extends Controller
      * Import titik_lokasi.geojson -> tabel bangunan.
      * WAJIB dijalankan SETELAH import batas SLS, karena tiap titik
      * dicocokkan ke SLS yang sudah ada di database lewat kode SLS.
+     *
+     * Kode SLS diambil dengan fallback berlapis, karena field "idsls"
+     * kadang kosong (null) di data lapangan walau titiknya sebenarnya
+     * masih punya kode wilayah lewat field lain:
+     *   1. idsls              (kode SLS hasil resolve otomatis)
+     *   2. level_5_full_code  (kode gabungan level 5, biasanya sama isinya)
+     *   3. idsubsls           (kode sub-SLS, sering identik juga)
+     * Kalau ketiganya kosong, bangunan tetap disimpan tapi tanpa SLS
+     * (sls_id null) dan dicatat di error_log supaya kelihatan di riwayat.
      */
     public function storeTitikLokasi(Request $request): RedirectResponse
     {
@@ -175,6 +190,7 @@ class ImportController extends Controller
                     ]
                 );
 
+                // simpan koordinat (kolom geometry + lat/long biasa sekaligus)
                 $bangunan->setKoordinat((float) $coords[1], (float) $coords[0]);
 
                 if ($sls) {
@@ -192,7 +208,7 @@ class ImportController extends Controller
                 } elseif ($kodeSls) {
                     // Kasus 3: ada kode SLS (dari salah satu field fallback),
                     // tapi belum ada di tabel sls -> kemungkinan besar batas
-                    // SLS wilayah ini belum diimport, bukan datanya yang BERMASALAH.
+                    // SLS wilayah ini belum diimport, bukan datanya yang cacat.
                     $errors[] = [
                         'baris' => $baris,
                         'pesan' => "{$idAssignment}: kode SLS '{$kodeSls}' tidak ditemukan di database (data tetap disimpan tanpa SLS).",
@@ -221,6 +237,11 @@ class ImportController extends Controller
         );
     }
 
+    /**
+     * Validasi ringan: pastikan file yang diupload memang JSON/GeoJSON valid.
+     * Tidak pakai rule "mimes" bawaan Laravel karena ekstensi .geojson
+     * tidak dikenali di daftar mime bawaannya.
+     */
     private function pastikanFileGeoJson(Request $request): void
     {
         $ext = strtolower($request->file('file')->getClientOriginalExtension());

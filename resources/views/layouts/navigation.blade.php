@@ -1,4 +1,11 @@
 <!-- resources/views/layouts/navigation.blade.php -->
+@php
+    $authUser  = Auth::user();
+    $isAdmin   = $authUser->isAdmin();
+    // Viewer hanya boleh melihat peta; Import Data khusus admin
+    $canImport = $isAdmin;
+@endphp
+
 <div x-data="{ mobileOpen: false }">
 
     <!-- ============ SIDEBAR (desktop) ============ -->
@@ -41,16 +48,42 @@
                 Peta
             </a>
 
-            <a href="{{ route('import.index') }}"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
-                       {{ request()->routeIs('import.*')
-                            ? 'bg-white text-teal-700 shadow-sm'
-                            : 'text-teal-50 hover:bg-teal-600/60' }}">
-                <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-                </svg>
-                Import Data
-            </a>
+            @if ($canImport)
+                <a href="{{ route('import.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                           {{ request()->routeIs('import.*')
+                                ? 'bg-white text-teal-700 shadow-sm'
+                                : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                    </svg>
+                    Import Data
+                </a>
+            @endif
+
+            {{-- ===== Administrasi (khusus admin) ===== --}}
+            @if ($isAdmin)
+                <p class="px-3 pt-5 mb-2 text-[10px] font-semibold uppercase tracking-wider text-teal-200/70">
+                    Administrasi
+                </p>
+
+                <a href="{{ route('admin.users.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                           {{ request()->routeIs('admin.users.*')
+                                ? 'bg-white text-teal-700 shadow-sm'
+                                : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    Manajemen Akun
+                    @php $pendingCount = \App\Models\User::where('status', 'pending')->count(); @endphp
+                    @if ($pendingCount > 0)
+                        <span class="ms-auto min-w-[1.25rem] text-center text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-teal-900">
+                            {{ $pendingCount }}
+                        </span>
+                    @endif
+                </a>
+            @endif
         </nav>
 
         <!-- User panel (bottom) -->
@@ -139,11 +172,23 @@
                            {{ request()->routeIs('peta.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
                     Peta
                 </a>
-                <a href="{{ route('import.index') }}"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                           {{ request()->routeIs('import.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
-                    Import Data
-                </a>
+                @if ($canImport)
+                    <a href="{{ route('import.index') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                               {{ request()->routeIs('import.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                        Import Data
+                    </a>
+                @endif
+                @if ($isAdmin)
+                    <a href="{{ route('admin.users.index') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                               {{ request()->routeIs('admin.users.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                        Manajemen Akun
+                        @if (($pendingCount ?? 0) > 0)
+                            <span class="ms-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-teal-900">{{ $pendingCount }}</span>
+                        @endif
+                    </a>
+                @endif
             </nav>
 
             <div class="border-t border-teal-600/60 p-4">
