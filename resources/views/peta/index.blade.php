@@ -543,7 +543,7 @@
                 badges += `<span class="pc-badge pc-badge-warn">SLS TIDAK DITEMUKAN</span>`;
             }
 
-            const alamat = d.sls_tercatat && d.sls_tercatat.nama_sls
+            const wilayah = d.sls_tercatat && d.sls_tercatat.nama_sls
                 ? `${d.sls_tercatat.nama_sls}${d.sls_tercatat.desa_kelurahan ? ', ' + d.sls_tercatat.desa_kelurahan : ''}`
                 : '-';
 
@@ -589,7 +589,7 @@
                     <div class="pc-badges">${badges}</div>
                     <div class="pc-title">${esc(judul)}</div>
                     <div class="pc-row">Nomor Bangunan: <b>${esc(d.nomor_bangunan ?? '-')}</b></div>
-                    <div class="pc-row">Alamat: <b>${esc(alamat)}</b></div>
+                    <div class="pc-row">Wilayah (SLS): <b>${esc(wilayah)}</b></div>
                     <div class="pc-row">Keterangan: <b>${esc(keterangan)}</b></div>
                     <div class="pc-row">ID SLS Tercatat: <b>${esc(d.sls_tercatat?.id_sls ?? '-')}</b></div>
                     <div class="pc-row">Jumlah KK: <b>${esc(d.jumlah_kk)}</b> &nbsp;|&nbsp; Jumlah Usaha: <b>${esc(d.jumlah_usaha)}</b></div>
