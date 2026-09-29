@@ -3,6 +3,8 @@
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\PetaController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\KegiatanController;
+
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -29,7 +31,9 @@ Route::middleware(['auth', 'approved'])->group(function () {
     Route::get('/peta/data/bangunan', [PetaController::class, 'dataBangunan'])->name('peta.data.bangunan');
     Route::get('/peta/bangunan/{bangunan}', [PetaController::class, 'detailBangunan'])->name('peta.detail.bangunan');
     Route::get('/peta/data/sls-list', [PetaController::class, 'daftarSls'])->name('peta.data.sls.daftar');
-    Route::get('/peta/sls/{sls}/statistik', [PetaController::class, 'statistikSls'])->name('peta.statistik.sls'); // BARU
+    Route::get('/peta/sls/{sls}/statistik', [PetaController::class, 'statistikSls'])->name('peta.statistik.sls');
+
+    Route::resource('kegiatan', KegiatanController::class);
 });
 
 require __DIR__.'/auth.php';

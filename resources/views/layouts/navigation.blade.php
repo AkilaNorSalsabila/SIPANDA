@@ -49,6 +49,18 @@
                 Dashboard
             </a>
 
+             <a href="{{ route('kegiatan.index') }}"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                       {{ request()->routeIs('kegiatan.*')
+                            ? 'bg-white text-teal-700 shadow-sm'
+                            : 'text-teal-50 hover:bg-teal-600/60' }}">
+                  <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5a3 3 0 006 0" /> <path stroke-linecap="round" stroke-linejoin="round" d="M9 13l2 2 4-4M9 18h6" />
+                </svg>
+                Kegiatan
+            </a>
+
             <a href="{{ route('peta.index') }}"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
                        {{ request()->routeIs('peta.*')
@@ -179,6 +191,11 @@
                     class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                            {{ request()->routeIs('dashboard') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
                     Dashboard
+                </a>
+                <a href="{{ route('kegiatan.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                           {{ request()->routeIs('kegiatan.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    Kegiatan
                 </a>
                 <a href="{{ route('peta.index') }}"
                     class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
