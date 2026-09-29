@@ -6,6 +6,20 @@
     $canImport = $isAdmin;
 @endphp
 
+<style>
+    /*
+     * Logo tanpa kotak putih di atas latar teal:
+     * - grayscale + invert: logo gelap jadi terang, latar putih jadi hitam
+     * - blend screen: hitam "hilang" ke warna latar, jadi tidak ada kotak
+     * Aman untuk PNG transparan maupun PNG berlatar putih.
+     */
+    .logo-nav {
+        height: 2.5rem; width: auto; max-width: 3rem; object-fit: contain; flex-shrink: 0;
+        filter: grayscale(1) invert(1) contrast(1.15);
+        mix-blend-mode: screen;
+    }
+</style>
+
 <div x-data="{ mobileOpen: false }">
 
     <!-- ============ SIDEBAR (desktop) ============ -->
@@ -13,9 +27,7 @@
         <!-- Logo -->
         <div class="h-16 flex items-center gap-2.5 px-5 border-b border-teal-600/60">
             <a href="{{ route('dashboard') }}" class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
-                    <x-application-logo class="h-5 w-5 fill-current text-white" />
-                </div>
+                <img src="{{ asset('images/logo-sipanda.png') }}" alt="Logo SIPANDA" class="logo-nav">
                 <span class="text-white font-bold text-sm tracking-wide">SIPANDA</span>
             </a>
         </div>
@@ -123,9 +135,7 @@
     <!-- ============ TOPBAR (mobile) ============ -->
     <div class="lg:hidden sticky top-0 z-40 bg-teal-700 h-16 flex items-center justify-between px-4">
         <a href="{{ route('dashboard') }}" class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
-                <x-application-logo class="h-5 w-5 fill-current text-white" />
-            </div>
+            <img src="{{ asset('images/logo-sipanda.png') }}" alt="Logo SIPANDA" class="logo-nav">
             <span class="text-white font-bold text-sm">SIPANDA</span>
         </a>
 
@@ -153,7 +163,10 @@
             class="relative flex flex-col w-64 h-full bg-teal-700">
 
             <div class="h-16 flex items-center justify-between px-5 border-b border-teal-600/60">
-                <span class="text-white font-bold text-sm">SIPANDA</span>
+                <div class="flex items-center gap-2.5">
+                    <img src="{{ asset('images/logo-sipanda.png') }}" alt="Logo SIPANDA" class="logo-nav">
+                    <span class="text-white font-bold text-sm">SIPANDA</span>
+                </div>
                 <button @click="mobileOpen = false" class="text-teal-100">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />

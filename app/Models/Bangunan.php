@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 class Bangunan extends Model
@@ -18,7 +18,7 @@ class Bangunan extends Model
     protected $fillable = [
         'kegiatan_id',
         'sls_id',
-        'kode_sls_asal',
+        'id_sls_asal',
         'di_luar_sls',
         'id_assignment',
         'nomor_bangunan',
@@ -41,6 +41,7 @@ class Bangunan extends Model
             'flag_btt'    => 'boolean',
             'flag_bku'    => 'boolean',
             'flag_repair' => 'boolean',
+            // NULL tetap NULL (= belum bisa dicek), bukan dianggap false.
             'di_luar_sls' => 'boolean',
         ];
     }
@@ -65,14 +66,22 @@ class Bangunan extends Model
         return $this->hasMany(Usaha::class);
     }
 
+    /** Kode SLS di data tidak ketemu di tabel sls. */
     public function scopeTanpaSls(Builder $query): Builder
     {
         return $query->whereNull('sls_id');
     }
 
+    /** SLS ketemu, tapi koordinat titik di luar polygon SLS itu. */
     public function scopeDiLuarSls(Builder $query): Builder
     {
         return $query->whereNotNull('sls_id')->where('di_luar_sls', true);
+    }
+
+    /** SLS ketemu, tapi SLS itu belum punya polygon, jadi belum bisa dicek. */
+    public function scopeBelumDicek(Builder $query): Builder
+    {
+        return $query->whereNotNull('sls_id')->whereNull('di_luar_sls');
     }
 
     public function kelengkapanRumahTangga(): string
@@ -98,6 +107,11 @@ class Bangunan extends Model
             ]);
     }
 
+    /**
+     * true  = titik di dalam polygon SLS-nya
+     * false = titik di luar polygon SLS-nya
+     * null  = tidak bisa dicek (tidak ada sls_id, ATAU SLS-nya belum punya polygon)
+     */
     public function isInsideSls(): ?bool
     {
         if (! $this->sls_id) {
@@ -106,18 +120,39 @@ class Bangunan extends Model
 
         $row = DB::table('bangunan as b')
             ->join('sls as s', 's.id', '=', 'b.sls_id')
-            ->select(DB::raw('ST_Contains(s.area, b.lokasi) as inside'))
+            ->select(DB::raw('(s.area IS NOT NULL AND b.lokasi IS NOT NULL) as bisa_dicek'))
+            ->addSelect(DB::raw('ST_Contains(s.area, b.lokasi) as inside'))
             ->where('b.id', $this->id)
             ->first();
 
-        return (bool) ($row->inside ?? false);
+        if (! $row || ! $row->bisa_dicek) {
+            return null;
+        }
+
+        return (bool) $row->inside;
     }
 
     /**
-     * Jarak (dalam meter) dari titik GPS bangunan ke batas polygon SLS
-     * yang tercatat. Dibungkus ::geography supaya hasilnya dalam meter
-     * (bukan derajat koordinat). 0 kalau titiknya memang di dalam polygon.
-     * Null kalau bangunan ini tidak punya sls_id sama sekali.
+     * Hitung ulang di_luar_sls untuk SEMUA titik yang SLS-nya sudah punya
+     * polygon, dalam satu query. Dipanggil otomatis setelah import batas SLS,
+     * supaya titik yang diimpor lebih dulu langsung ikut terperiksa.
+     * Mengembalikan jumlah titik yang diperiksa.
+     */
+    public static function hitungUlangDiLuarSls(): int
+    {
+        return DB::affectingStatement('
+            UPDATE bangunan b
+            SET di_luar_sls = NOT ST_Contains(s.area, b.lokasi)
+            FROM sls s
+            WHERE b.sls_id = s.id
+              AND s.area IS NOT NULL
+              AND b.lokasi IS NOT NULL
+        ');
+    }
+
+    /**
+     * Jarak (meter) dari titik ke batas polygon SLS yang tercatat.
+     * ::geography membuat hasilnya dalam meter, bukan derajat.
      */
     public function jarakKeSlsMeter(): ?float
     {
@@ -131,15 +166,14 @@ class Bangunan extends Model
             ->where('b.id', $this->id)
             ->first();
 
-        return $row ? round((float) $row->jarak, 1) : null;
+        if (! $row || $row->jarak === null) {
+            return null;
+        }
+
+        return round((float) $row->jarak, 1);
     }
 
-    /**
-     * Cari SLS mana yang SEBENARNYA memuat koordinat titik ini secara
-     * geometris — dipakai untuk kasus "posisi di luar batas SLS", supaya
-     * bisa dibandingkan: SLS yang TERCATAT (dari data kuesioner/import)
-     * vs SLS yang RIIL memuat lokasi GPS-nya (kalau ada & beda).
-     */
+    /** SLS mana yang secara geometris memuat koordinat titik ini. */
     public function slsAktual(): ?Sls
     {
         if (! $this->latitude || ! $this->longitude) {

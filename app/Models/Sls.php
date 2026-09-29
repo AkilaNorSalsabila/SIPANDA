@@ -14,11 +14,11 @@ class Sls extends Model
     protected $table = 'sls';
 
     protected $fillable = [
-        'kode_sls',
-        'kode_provinsi',
-        'kode_kabupaten',
-        'kode_kecamatan',
-        'kode_desa',
+        'id_sls',
+        'id_provinsi',
+        'id_kabupaten',
+        'id_kecamatan',
+        'id_kelurahan',
         'nama_sls',
         'kabupaten_kota',
         'kecamatan',
@@ -42,7 +42,7 @@ class Sls extends Model
 
         return $row?->geojson ? json_decode($row->geojson, true) : null;
     }
-    
+
     public function setAreaFromGeoJson(array $geojson): void
     {
         $json = json_encode($geojson);

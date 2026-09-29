@@ -28,6 +28,7 @@ Route::middleware(['auth', 'approved'])->group(function () {
     Route::get('/peta/data/sls', [PetaController::class, 'dataSls'])->name('peta.data.sls');
     Route::get('/peta/data/bangunan', [PetaController::class, 'dataBangunan'])->name('peta.data.bangunan');
     Route::get('/peta/bangunan/{bangunan}', [PetaController::class, 'detailBangunan'])->name('peta.detail.bangunan');
+    Route::get('/peta/data/sls-list', [PetaController::class, 'daftarSls'])->name('peta.data.sls.daftar');
     Route::get('/peta/sls/{sls}/statistik', [PetaController::class, 'statistikSls'])->name('peta.statistik.sls'); // BARU
 });
 

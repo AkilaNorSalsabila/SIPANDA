@@ -18,6 +18,31 @@ class PetaController extends Controller
         return view('peta.index', compact('kegiatanList'));
     }
 
+    /**
+     * Daftar SLS untuk dropdown. TIDAK bergantung pada polygon, jadi SLS
+     * yang belum punya batas (area NULL) tetap muncul. Hanya SLS yang
+     * punya bangunan di kegiatan terpilih.
+     */
+    public function daftarSls(Request $request): JsonResponse
+    {
+        $request->validate(['kegiatan_id' => ['required', 'exists:kegiatan,id']]);
+
+        $kegiatanId = $request->kegiatan_id;
+
+        $list = Sls::query()
+            ->select('sls.id', 'sls.id_sls', 'sls.nama_sls', 'sls.desa_kelurahan', 'sls.kecamatan')
+            ->selectRaw('(sls.area IS NOT NULL) as punya_polygon')
+            ->withCount(['bangunan as jumlah_bangunan' => fn ($q) => $q->where('kegiatan_id', $kegiatanId)])
+            ->whereHas('bangunan', fn ($q) => $q->where('kegiatan_id', $kegiatanId))
+            ->orderBy('sls.id_sls')
+            ->get();
+
+        return response()->json($list);
+    }
+
+    /**
+     * Polygon SLS. Hanya SLS yang sudah punya polygon (area tidak NULL).
+     */
     public function dataSls(): JsonResponse
     {
         $slsList = Sls::whereNotNull('area')->get();
@@ -35,7 +60,7 @@ class PetaController extends Controller
                     'geometry' => $geometry,
                     'properties' => [
                         'id'             => $sls->id,
-                        'kode_sls'       => $sls->kode_sls,
+                        'id_sls'         => $sls->id_sls,
                         'nama_sls'       => $sls->nama_sls,
                         'kabupaten_kota' => $sls->kabupaten_kota,
                         'kecamatan'      => $sls->kecamatan,
@@ -79,13 +104,6 @@ class PetaController extends Controller
         return response()->json(['type' => 'FeatureCollection', 'features' => $features]);
     }
 
-    /**
-     * Statistik 1 SLS (untuk popup saat area SLS diklik) + daftar bangunan
-     * dengan 5 standar informasi (untuk modal "Detail Statistik").
-     *
-     * Kalau kegiatan_id dikirim, statistik dihitung khusus kegiatan itu
-     * (karena tiap kegiatan punya data bangunan sendiri).
-     */
     public function statistikSls(Request $request, Sls $sls): JsonResponse
     {
         $request->validate(['kegiatan_id' => ['nullable', 'exists:kegiatan,id']]);
@@ -99,43 +117,36 @@ class PetaController extends Controller
         $bangunan = $query->get()->sortBy(fn ($b) => (int) $b->nomor_bangunan)->values();
 
         $total = $bangunan->count();
+
         $daftar = $bangunan->map(function ($b) {
             $rt = $b->rumahTangga;
 
             return [
-                'id'                  => $b->id,
-                'nomor_bangunan'      => $b->nomor_bangunan ?? '-',
-                'nomor_urut_rt'       => $rt->pluck('nomor_urut_rumah_tangga')->filter()->unique()->join(', ') ?: '-',
-                'nama_usaha'          => $b->usaha->pluck('nama_usaha')->filter()->join(', ') ?: '-',
-                'nama_keluarga'       => $rt->pluck('nama_kepala_keluarga')->filter()->join(', ') ?: '-',
-                'nama_rumah_tangga'   => $rt->pluck('nama_kepala_rumah_tangga')->filter()->unique()->join(', ') ?: '-',
+                'id'             => $b->id,
+                'nomor_bangunan' => $b->nomor_bangunan ?? '-',
+                'nama_usaha'     => $b->usaha->pluck('nama_usaha')->filter()->join(', ') ?: '-',
+                'nama_keluarga'  => $rt->pluck('nama_kepala_keluarga')->filter()->join(', ') ?: '-',
             ];
         });
 
         return response()->json([
             'sls' => [
                 'id'             => $sls->id,
-                'kode_sls'       => $sls->kode_sls,
+                'id_sls'         => $sls->id_sls,
                 'nama_sls'       => $sls->nama_sls,
                 'kabupaten_kota' => $sls->kabupaten_kota,
                 'kecamatan'      => $sls->kecamatan,
                 'desa_kelurahan' => $sls->desa_kelurahan,
             ],
             'statistik' => [
-                'total_bangunan'   => $total,
-                'jumlah_usaha'     => (int) $bangunan->sum('jumlah_usaha'),
-                'keluarga_kk'      => (int) $bangunan->sum('jumlah_kk'),
-                'bangunan_lainnya' => $bangunan->filter(fn ($b) => (int) $b->jumlah_kk === 0 && (int) $b->jumlah_usaha === 0)->count(),
+                'total_bangunan' => $total,
+                'jumlah_usaha'   => (int) $bangunan->sum('jumlah_usaha'),
+                'keluarga_kk'    => (int) $bangunan->sum('jumlah_kk'),
             ],
             'daftar' => $daftar,
         ]);
     }
 
-    /**
-     * Detail 1 bangunan untuk popup peta. Memuat 5 standar informasi:
-     * no. urut bangunan, no. urut rumah tangga, nama usaha, nama keluarga,
-     * nama rumah tangga (kosong -> "-" di sisi tampilan).
-     */
     public function detailBangunan(Bangunan $bangunan): JsonResponse
     {
         $bangunan->load(['sls', 'kegiatan', 'rumahTangga', 'usaha']);
@@ -148,7 +159,7 @@ class PetaController extends Controller
         if ($statusKondisi === 'di_luar_sls') {
             $aktual = $bangunan->slsAktual();
             $slsAktual = $aktual ? [
-                'kode_sls' => $aktual->kode_sls,
+                'id_sls' => $aktual->id_sls,
                 'nama_sls' => $aktual->nama_sls,
             ] : null;
 
@@ -169,12 +180,12 @@ class PetaController extends Controller
             'longitude'       => $bangunan->longitude,
 
             'sls_tercatat' => $bangunan->sls ? [
-                'kode_sls'       => $bangunan->sls->kode_sls,
+                'id_sls'         => $bangunan->sls->id_sls,
                 'nama_sls'       => $bangunan->sls->nama_sls,
                 'kecamatan'      => $bangunan->sls->kecamatan,
                 'desa_kelurahan' => $bangunan->sls->desa_kelurahan,
-            ] : ($bangunan->kode_sls_asal ? [
-                'kode_sls' => $bangunan->kode_sls_asal,
+            ] : ($bangunan->id_sls_asal ? [
+                'id_sls'   => $bangunan->id_sls_asal,
                 'nama_sls' => null,
             ] : null),
 
@@ -182,20 +193,16 @@ class PetaController extends Controller
             'jarak_meter' => $jarakMeter,
 
             'rumah_tangga' => $bangunan->rumahTangga->map(fn ($rt) => [
-                'id'                => $rt->id,
-                // Blok V.A kolom (8): No. Urut Rumah Tangga
-                'nomor_urut'        => $rt->nomor_urut_rumah_tangga,
-                // Blok V.A kolom (3): Nama Kepala Keluarga (KK)
-                'nama_keluarga'     => $rt->nama_kepala_keluarga,
-                // Blok V.A kolom (10): Nama Kepala Rumah Tangga (KRT), kosong -> "-"
-                'nama_rumah_tangga' => $rt->nama_kepala_rumah_tangga,
-                'jumlah_anggota'    => $rt->jumlah_anggota,
-            ])->values(),
+                'id'                   => $rt->id,
+                'nomor_kk'             => $rt->nomorKkTersamar(),
+                'nama_kepala_keluarga' => $rt->nama_kepala_keluarga,
+                'jumlah_anggota'       => $rt->jumlah_anggota,
+            ]),
             'usaha' => $bangunan->usaha->map(fn ($u) => [
                 'id'          => $u->id,
                 'nama_usaha'  => $u->nama_usaha,
                 'jenis_usaha' => $u->jenis_usaha,
-            ])->values(),
+            ]),
         ]);
     }
 
@@ -205,10 +212,10 @@ class PetaController extends Controller
             return 'tanpa_sls';
         }
 
-        if ($b->di_luar_sls) {
-            return 'di_luar_sls';
+        if ($b->di_luar_sls === null) {
+            return 'belum_dicek';
         }
 
-        return 'normal';
+        return $b->di_luar_sls ? 'di_luar_sls' : 'normal';
     }
 }

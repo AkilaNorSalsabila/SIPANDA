@@ -73,12 +73,12 @@ class ImportController extends Controller
 
             try {
                 $sls = Sls::updateOrCreate(
-                    ['kode_sls' => $kodeSls],
+                    ['id_sls' => $kodeSls],
                     [
-                        'kode_provinsi'  => $props['kdprov'] ?? null,
-                        'kode_kabupaten' => $props['kdkab'] ?? null,
-                        'kode_kecamatan' => $props['kdkec'] ?? null,
-                        'kode_desa'      => $props['kddesa'] ?? null,
+                        'id_provinsi'    => $props['kdprov'] ?? null,
+                        'id_kabupaten'   => $props['kdkab'] ?? null,
+                        'id_kecamatan'   => $props['kdkec'] ?? null,
+                        'id_kelurahan'   => $props['kddesa'] ?? null,
                         'nama_sls'       => $props['nmsls'] ?? '-',
                         'kabupaten_kota' => $props['nmkab'] ?? '-',
                         'kecamatan'      => $props['nmkec'] ?? '-',
@@ -171,14 +171,14 @@ class ImportController extends Controller
                 // Kasus 1: cari SLS berdasarkan kode (hasil fallback di atas).
                 // Kalau tidak ketemu, sls_id dikosongkan dan kode aslinya
                 // (apa pun isinya, termasuk null) tetap disimpan sebagai arsip.
-                $sls = $kodeSls ? Sls::where('kode_sls', $kodeSls)->first() : null;
+                $sls = $kodeSls ? Sls::where('id_sls', $kodeSls)->first() : null;
 
                 $bangunan = Bangunan::updateOrCreate(
                     ['id_assignment' => $idAssignment],
                     [
                         'kegiatan_id'     => $request->kegiatan_id,
                         'sls_id'          => $sls?->id,
-                        'kode_sls_asal'   => $kodeSls,
+                        'id_sls_asal'     => $kodeSls,
                         'nomor_bangunan'  => $props['no_bang'] ?? null,
                         'kode_bang_value' => $props['kode_bang_value'] ?? null,
                         'flag_btt'        => ($props['btt'] ?? '0') == '1',
