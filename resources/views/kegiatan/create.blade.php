@@ -105,6 +105,18 @@
                     @enderror
                 </div>
 
+                   {{-- Jenis --}}
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">Jenis Kegiatan <span class="text-red-500">*</span></label>
+                    <select name="jenis" required
+                        class="w-full text-sm rounded-lg border-slate-300 focus:ring-teal-500 focus:border-teal-500">
+                        @foreach ($jenisList as $val => $label)
+                            <option value="{{ $val }}" @selected(old('jenis') === $val)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    @error('jenis') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
+                </div>
+
 
 
                     {{-- Periode --}}

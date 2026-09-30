@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Kegiatan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class KegiatanController extends Controller
 {
@@ -12,6 +15,16 @@ class KegiatanController extends Controller
         1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
         5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
         9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+    ];
+
+    // Sesuai enum kolom 'jenis' di migration.
+    public const JENIS = [
+        'se'       => 'Sensus Ekonomi',
+        'susenas'  => 'Susenas',
+        'sakernas' => 'Sakernas',
+        'sensus'   => 'Sensus',
+        'podes'    => 'Podes',
+        'lainnya'  => 'Lainnya',
     ];
 
     public function index(Request $request)
@@ -32,6 +45,7 @@ class KegiatanController extends Controller
             'kegiatan'     => $kegiatan,
             'kodeOtomatis' => $this->nextKode(),
             'bulanList'    => self::BULAN,
+            'jenisList'    => self::JENIS,
         ]);
     }
 
@@ -57,32 +71,29 @@ class KegiatanController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'nama_kegiatan' => ['required', 'string', 'max:255'],
-            'bulan_mulai'   => ['required', 'integer', 'between:1,12'],
-            'tahun_mulai'   => ['required', 'integer', 'between:2000,2100'],
-            'bulan_selesai' => ['nullable', 'integer', 'between:1,12', 'required_with:tahun_selesai'],
-            'tahun_selesai' => ['nullable', 'integer', 'between:2000,2100', 'required_with:bulan_selesai'],
-            'deskripsi'     => ['nullable', 'string'],
-        ]);
+        $data = $this->validatedWithPeriode($request);
 
-        $periode = $this->buildPeriode(
-            (int) $validated['bulan_mulai'],
-            (int) $validated['tahun_mulai'],
-            isset($validated['bulan_selesai']) ? (int) $validated['bulan_selesai'] : null,
-            isset($validated['tahun_selesai']) ? (int) $validated['tahun_selesai'] : null,
-        );
-
-        // Kode dibuat di server (bukan dari input) dan di dalam transaksi
-        // supaya dua pengguna yang menyimpan bersamaan tidak mendapat kode sama.
-        DB::transaction(function () use ($validated, $periode) {
-            Kegiatan::create([
-                'kode_kegiatan' => $this->nextKode(),
-                'nama_kegiatan' => $validated['nama_kegiatan'],
-                'periode'       => $periode,
-                'deskripsi'     => $validated['deskripsi'] ?? null,
+        try {
+            // Kode dibuat di server (bukan dari input) dan di dalam transaksi
+            // supaya dua pengguna yang menyimpan bersamaan tidak mendapat kode sama.
+            DB::transaction(function () use ($data) {
+                Kegiatan::create([
+                    'kode_kegiatan' => $this->nextKode(),
+                    'nama_kegiatan' => $data['nama_kegiatan'],
+                    'jenis'         => $data['jenis'],
+                    'periode'       => $data['periode'],
+                ]);
+            });
+        } catch (\Throwable $e) {
+            Log::error('Gagal menyimpan kegiatan baru', [
+                'data_baru'   => $data,
+                'pesan_error' => $e->getMessage(),
             ]);
-        });
+
+            return back()
+                ->withInput()
+                ->with('error', 'Terjadi kesalahan saat menyimpan kegiatan baru. Silakan coba lagi.');
+        }
 
         return redirect()
             ->route('kegiatan.index')
@@ -91,7 +102,39 @@ class KegiatanController extends Controller
 
     public function update(Request $request, Kegiatan $kegiatan)
     {
-        $kegiatan->update($this->validated($request));
+        try {
+            $data = $this->validatedWithPeriode($request);
+        } catch (ValidationException $e) {
+            // Dicatat supaya ketahuan pola input yang sering gagal
+            // (mis. field mana yang paling sering salah diisi PPL/admin).
+            Log::warning('Gagal validasi saat edit kegiatan', [
+                'kegiatan_id' => $kegiatan->id,
+                'input'       => $request->except(['_token', '_method']),
+                'errors'      => $e->errors(),
+            ]);
+
+            throw $e; // biarkan Laravel tetap redirect balik + isi $errors seperti biasa
+        }
+
+        try {
+            $kegiatan->update([
+                'nama_kegiatan' => $data['nama_kegiatan'],
+                'jenis'         => $data['jenis'],
+                'periode'       => $data['periode'],
+            ]);
+        } catch (\Throwable $e) {
+            // Dicatat lengkap dengan pesan asli dari database/exception,
+            // supaya bisa ditelusuri di storage/logs/laravel.log.
+            Log::error('Gagal menyimpan perubahan kegiatan', [
+                'kegiatan_id' => $kegiatan->id,
+                'data_baru'   => $data,
+                'pesan_error' => $e->getMessage(),
+            ]);
+
+            return back()
+                ->withInput()
+                ->with('error', 'Terjadi kesalahan saat menyimpan perubahan kegiatan. Silakan coba lagi.');
+        }
 
         return redirect()
             ->route('kegiatan.index')
@@ -100,23 +143,32 @@ class KegiatanController extends Controller
 
     public function destroy(Kegiatan $kegiatan)
     {
-        if ($kegiatan->importBatches()->exists()) {
-            return back()->with('error',
-                'Kegiatan ini tidak bisa dihapus karena sudah memiliki riwayat import.');
-        }
-
         $nama = $kegiatan->nama_kegiatan;
 
-        DB::transaction(function () use ($kegiatan) {
-            // Hapus dulu semua data bangunan terkait, baru kegiatannya,
-            // supaya tidak ada data bangunan yang "yatim" (tanpa kegiatan induk).
-            $kegiatan->bangunan()->delete();
-            $kegiatan->delete();
-        });
+        try {
+            DB::transaction(function () use ($kegiatan) {
+                // Hapus dulu data anak (bangunan & riwayat import), baru kegiatannya,
+                // supaya tidak ada data yang tertinggal tanpa kegiatan induk.
+                // (Foreign key di database sebenarnya juga sudah cascadeOnDelete,
+                // tapi dihapus eksplisit di sini supaya jelas dan tidak bergantung
+                // pada asumsi constraint database.)
+                $kegiatan->bangunan()->delete();
+                $kegiatan->importBatches()->delete();
+                $kegiatan->delete();
+            });
+        } catch (\Throwable $e) {
+            Log::error('Gagal menghapus kegiatan', [
+                'kegiatan_id' => $kegiatan->id,
+                'nama'        => $nama,
+                'pesan_error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', "Gagal menghapus kegiatan \"{$nama}\". Silakan coba lagi.");
+        }
 
         return redirect()
             ->route('kegiatan.index')
-            ->with('status', "Kegiatan \"{$nama}\" beserta data bangunannya berhasil dihapus.");
+            ->with('status', "Kegiatan \"{$nama}\" beserta seluruh data bangunan dan riwayat importnya berhasil dihapus.");
     }
 
     /**
@@ -157,12 +209,29 @@ class KegiatanController extends Controller
         return "{$awal} - {$akhir}";
     }
 
-    private function validated(Request $request): array
+    /**
+     * Validasi nama, jenis, dan rentang bulan-tahun, sekaligus menyusun
+     * kolom 'periode' dari rentang tersebut. Dipakai bareng oleh store()
+     * dan update() supaya keduanya konsisten.
+     */
+    private function validatedWithPeriode(Request $request): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'nama_kegiatan' => ['required', 'string', 'max:255'],
-            'periode'       => ['nullable', 'string', 'max:50'],
-            'deskripsi'     => ['nullable', 'string'],
+            'jenis'         => ['required', Rule::in(array_keys(self::JENIS))],
+            'bulan_mulai'   => ['required', 'integer', 'between:1,12'],
+            'tahun_mulai'   => ['required', 'integer', 'between:2000,2100'],
+            'bulan_selesai' => ['nullable', 'integer', 'between:1,12', 'required_with:tahun_selesai'],
+            'tahun_selesai' => ['nullable', 'integer', 'between:2000,2100', 'required_with:bulan_selesai'],
         ]);
+
+        $validated['periode'] = $this->buildPeriode(
+            (int) $validated['bulan_mulai'],
+            (int) $validated['tahun_mulai'],
+            isset($validated['bulan_selesai']) ? (int) $validated['bulan_selesai'] : null,
+            isset($validated['tahun_selesai']) ? (int) $validated['tahun_selesai'] : null,
+        );
+
+        return $validated;
     }
 }

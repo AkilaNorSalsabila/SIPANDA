@@ -15,8 +15,8 @@ class Kegiatan extends Model
     protected $fillable = [
         'kode_kegiatan',
         'nama_kegiatan',
+        'jenis',
         'periode',
-        'status',
     ];
 
     public function bangunan(): HasMany

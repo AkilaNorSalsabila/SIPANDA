@@ -1,4 +1,3 @@
-
 {{-- ================= MODAL: EDIT ================= --}}
 <div x-show="showEditModal" x-cloak
     class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -57,10 +56,28 @@
 
             @csrf
             @method('PUT')
+            <input type="hidden" name="_form" value="edit">
+            <input type="hidden" name="_kegiatan_id" :value="editing.id">
+            <input type="hidden" name="_kode_kegiatan" :value="editing.kode_kegiatan">
 
 
             {{-- ================= BODY ================= --}}
             <div class="px-5 py-4 space-y-4 overflow-y-auto">
+
+                @if (old('_form') === 'edit' && ($errors->any() || session('error')))
+                    <div class="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg space-y-1">
+                        <p class="font-semibold">Perubahan belum tersimpan:</p>
+                        @if ($errors->any())
+                            <ul class="list-disc list-inside">
+                                @foreach ($errors->all() as $pesan)
+                                    <li>{{ $pesan }}</li>
+                                @endforeach
+                            </ul>
+                        @else
+                            <p>{{ session('error') }}</p>
+                        @endif
+                    </div>
+                @endif
 
 
                 {{-- Kode Kegiatan --}}
@@ -85,6 +102,31 @@
                     <p class="mt-1 text-[10px] text-slate-400">
                         Kode tidak dapat diubah.
                     </p>
+
+                </div>
+
+
+                {{-- Jenis Kegiatan --}}
+                <div>
+
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">
+                        Jenis Kegiatan
+                        <span class="text-red-500">*</span>
+                    </label>
+
+                    <select name="jenis"
+                        required
+                        x-model="editing.jenis"
+                        class="w-full text-xs rounded-lg
+                               border-slate-300
+                               focus:ring-teal-500
+                               focus:border-teal-500">
+
+                        @foreach ($jenisList as $val => $label)
+                            <option value="{{ $val }}">{{ $label }}</option>
+                        @endforeach
+
+                    </select>
 
                 </div>
 
@@ -135,7 +177,7 @@
                                 {{-- Bulan Mulai --}}
                                 <select name="bulan_mulai"
                                     required
-                                    x-model="editing.bulan_mulai"
+                                    x-model.number="editing.bulan_mulai"
                                     class="w-full text-xs rounded-lg
                                            border-slate-300
                                            focus:ring-teal-500
@@ -155,7 +197,7 @@
                                 {{-- Tahun Mulai --}}
                                 <select name="tahun_mulai"
                                     required
-                                    x-model="editing.tahun_mulai"
+                                    x-model.number="editing.tahun_mulai"
                                     class="w-full text-xs rounded-lg
                                            border-slate-300
                                            focus:ring-teal-500
@@ -253,28 +295,6 @@
 
                 </div>
 
-
-                {{-- ================= DESKRIPSI ================= --}}
-                <!-- <div>
-
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">
-                        Deskripsi
-                        <span class="font-normal text-slate-400">
-                            (opsional)
-                        </span>
-                    </label>
-
-                    <textarea name="deskripsi"
-                        rows="3"
-                        x-text="editing.deskripsi ?? ''"
-                        placeholder="Tambahkan deskripsi kegiatan..."
-                        class="w-full text-xs rounded-lg
-                               border-slate-300
-                               focus:ring-teal-500
-                               focus:border-teal-500"></textarea>
-
-                </div> -->
-
             </div>
 
 
@@ -321,4 +341,3 @@
 
     </div>
 </div>
-
