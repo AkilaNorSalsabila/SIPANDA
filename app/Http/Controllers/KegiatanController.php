@@ -6,7 +6,6 @@ use App\Models\Kegiatan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class KegiatanController extends Controller
@@ -17,20 +16,10 @@ class KegiatanController extends Controller
         9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
     ];
 
-    // Sesuai enum kolom 'jenis' di migration.
-    public const JENIS = [
-        'se'       => 'Sensus Ekonomi',
-        'susenas'  => 'Susenas',
-        'sakernas' => 'Sakernas',
-        'sensus'   => 'Sensus',
-        'podes'    => 'Podes',
-        'lainnya'  => 'Lainnya',
-    ];
-
     public function index(Request $request)
     {
         $kegiatan = Kegiatan::query()
-            ->withCount(['bangunan', 'importBatches'])
+            ->withCount('bangunan')
             ->when($request->filled('q'), function ($query) use ($request) {
                 $q = $request->q;
                 $query->where(fn ($w) => $w
@@ -45,14 +34,12 @@ class KegiatanController extends Controller
             'kegiatan'     => $kegiatan,
             'kodeOtomatis' => $this->nextKode(),
             'bulanList'    => self::BULAN,
-            'jenisList'    => self::JENIS,
         ]);
     }
 
     /**
-     * Tambah, edit, dan detail sekarang berupa popup di halaman index,
-     * jadi method create/edit/show di bawah ini hanya jaga-jaga kalau
-     * URL-nya diakses langsung, tidak dipakai oleh UI.
+     * Tambah, edit, dan detail berupa popup di halaman index,
+     * jadi create/edit/show hanya jaga-jaga kalau URL-nya diakses langsung.
      */
     public function create()
     {
@@ -80,7 +67,6 @@ class KegiatanController extends Controller
                 Kegiatan::create([
                     'kode_kegiatan' => $this->nextKode(),
                     'nama_kegiatan' => $data['nama_kegiatan'],
-                    'jenis'         => $data['jenis'],
                     'periode'       => $data['periode'],
                 ]);
             });
@@ -105,26 +91,21 @@ class KegiatanController extends Controller
         try {
             $data = $this->validatedWithPeriode($request);
         } catch (ValidationException $e) {
-            // Dicatat supaya ketahuan pola input yang sering gagal
-            // (mis. field mana yang paling sering salah diisi PPL/admin).
             Log::warning('Gagal validasi saat edit kegiatan', [
                 'kegiatan_id' => $kegiatan->id,
                 'input'       => $request->except(['_token', '_method']),
                 'errors'      => $e->errors(),
             ]);
 
-            throw $e; // biarkan Laravel tetap redirect balik + isi $errors seperti biasa
+            throw $e; // Laravel tetap redirect balik + isi $errors seperti biasa
         }
 
         try {
             $kegiatan->update([
                 'nama_kegiatan' => $data['nama_kegiatan'],
-                'jenis'         => $data['jenis'],
                 'periode'       => $data['periode'],
             ]);
         } catch (\Throwable $e) {
-            // Dicatat lengkap dengan pesan asli dari database/exception,
-            // supaya bisa ditelusuri di storage/logs/laravel.log.
             Log::error('Gagal menyimpan perubahan kegiatan', [
                 'kegiatan_id' => $kegiatan->id,
                 'data_baru'   => $data,
@@ -149,9 +130,6 @@ class KegiatanController extends Controller
             DB::transaction(function () use ($kegiatan) {
                 // Hapus dulu data anak (bangunan & riwayat import), baru kegiatannya,
                 // supaya tidak ada data yang tertinggal tanpa kegiatan induk.
-                // (Foreign key di database sebenarnya juga sudah cascadeOnDelete,
-                // tapi dihapus eksplisit di sini supaya jelas dan tidak bergantung
-                // pada asumsi constraint database.)
                 $kegiatan->bangunan()->delete();
                 $kegiatan->importBatches()->delete();
                 $kegiatan->delete();
@@ -168,7 +146,7 @@ class KegiatanController extends Controller
 
         return redirect()
             ->route('kegiatan.index')
-            ->with('status', "Kegiatan \"{$nama}\" beserta seluruh data bangunan dan riwayat importnya berhasil dihapus.");
+            ->with('status', "Kegiatan \"{$nama}\" beserta seluruh datanya berhasil dihapus.");
     }
 
     /**
@@ -189,7 +167,7 @@ class KegiatanController extends Controller
 
     /**
      * Susun teks periode dari rentang bulan-tahun.
-     * Hasilnya "Agustus 2026" (kalau selesai kosong/sama), atau
+     * "Agustus 2026" (kalau selesai kosong/sama), atau
      * "Agustus 2026 - Desember 2026" kalau rentangnya beda.
      */
     private function buildPeriode(int $bulanMulai, int $tahunMulai, ?int $bulanSelesai, ?int $tahunSelesai): string
@@ -204,21 +182,17 @@ class KegiatanController extends Controller
             return $awal;
         }
 
-        $akhir = self::BULAN[$bulanSelesai] . ' ' . $tahunSelesai;
-
-        return "{$awal} - {$akhir}";
+        return $awal . ' - ' . self::BULAN[$bulanSelesai] . ' ' . $tahunSelesai;
     }
 
     /**
-     * Validasi nama, jenis, dan rentang bulan-tahun, sekaligus menyusun
-     * kolom 'periode' dari rentang tersebut. Dipakai bareng oleh store()
-     * dan update() supaya keduanya konsisten.
+     * Validasi nama dan rentang bulan-tahun, sekaligus menyusun kolom 'periode'.
+     * Dipakai bareng oleh store() dan update().
      */
     private function validatedWithPeriode(Request $request): array
     {
         $validated = $request->validate([
             'nama_kegiatan' => ['required', 'string', 'max:255'],
-            'jenis'         => ['required', Rule::in(array_keys(self::JENIS))],
             'bulan_mulai'   => ['required', 'integer', 'between:1,12'],
             'tahun_mulai'   => ['required', 'integer', 'between:2000,2100'],
             'bulan_selesai' => ['nullable', 'integer', 'between:1,12', 'required_with:tahun_selesai'],

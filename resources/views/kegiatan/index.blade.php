@@ -6,10 +6,7 @@
     <div class="py-8" x-data="{
             showAddModal: false,
             showEditModal: false,
-            showDetailModal: false,
             editing: {},
-            detail: {},
-            jenisLabel: @js($jenisList),
             bulanMap: {
                 Januari: 1, Februari: 2, Maret: 3, April: 4, Mei: 5, Juni: 6,
                 Juli: 7, Agustus: 8, September: 9, Oktober: 10, November: 11, Desember: 12,
@@ -43,13 +40,16 @@
                     id: '{{ old('_kegiatan_id') }}',
                     kode_kegiatan: @js(old('_kode_kegiatan')),
                     nama_kegiatan: @js(old('nama_kegiatan')),
-                    jenis: '{{ old('jenis') }}',
                     bulan_mulai: '{{ old('bulan_mulai') }}',
                     tahun_mulai: '{{ old('tahun_mulai') }}',
                     bulan_selesai: '{{ old('bulan_selesai') }}',
                     tahun_selesai: '{{ old('tahun_selesai') }}',
                 };
                 showEditModal = true;
+            @endif
+
+            @if (old('_form') === 'tambah' && ($errors->any() || session('error')))
+                showAddModal = true;
             @endif
         ">
         <div class="max-w-6xl mx-auto sm:px-6 lg:px-8 space-y-6">
@@ -60,7 +60,7 @@
                 </div>
             @endif
 
-            @if (session('error'))
+            @if (session('error') && ! in_array(old('_form'), ['tambah', 'edit'], true))
                 <div class="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
                     {{ session('error') }}
                 </div>
@@ -103,7 +103,6 @@
                                 <th class="px-4 py-3 text-left font-semibold">Nama Kegiatan</th>
                                 <th class="px-4 py-3 text-left font-semibold">Periode</th>
                                 <th class="px-4 py-3 text-center font-semibold">Bangunan</th>
-                                <th class="px-4 py-3 text-center font-semibold">Import</th>
                                 <th class="px-4 py-3 text-center font-semibold">Aksi</th>
                             </tr>
                         </thead>
@@ -114,27 +113,11 @@
                                         {{ $kegiatan->firstItem() + $loop->index }}
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap font-medium text-slate-700">{{ $k->kode_kegiatan }}</td>
-                                    <td class="px-4 py-3">
-                                        <button type="button" @click="detail = @js($k); showDetailModal = true"
-                                            class="text-slate-800 hover:text-teal-700 font-medium text-left">
-                                            {{ $k->nama_kegiatan }}
-                                        </button>
-                                    </td>
+                                    <td class="px-4 py-3 font-medium text-slate-800">{{ $k->nama_kegiatan }}</td>
                                     <td class="px-4 py-3 whitespace-nowrap text-slate-600">{{ $k->periode ?? '-' }}</td>
                                     <td class="px-4 py-3 text-center text-slate-600">{{ number_format($k->bangunan_count) }}</td>
-                                    <td class="px-4 py-3 text-center text-slate-600">{{ number_format($k->import_batches_count) }}</td>
                                     <td class="px-4 py-3 whitespace-nowrap">
                                         <div class="flex items-center justify-center gap-1">
-                                            {{-- Detail --}}
-                                            <button type="button" @click="detail = @js($k); showDetailModal = true"
-                                                title="Detail" aria-label="Detail"
-                                                class="p-1.5 rounded-lg text-teal-600 hover:bg-teal-50 transition">
-                                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                </svg>
-                                            </button>
-
                                             {{-- Edit --}}
                                             <button type="button" @click="openEdit(@js($k))"
                                                 title="Edit" aria-label="Edit"
@@ -161,7 +144,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-4 py-8 text-center text-slate-400">
+                                    <td colspan="6" class="px-4 py-8 text-center text-slate-400">
                                         Belum ada kegiatan. Klik "Tambah Kegiatan" untuk membuat yang pertama.
                                     </td>
                                 </tr>
@@ -170,14 +153,15 @@
                     </table>
                 </div>
 
-                <div class="px-4 py-3 border-t border-slate-100">
-                    {{ $kegiatan->links() }}
-                </div>
+                @if ($kegiatan->hasPages())
+                    <div class="px-4 py-3 border-t border-slate-100">
+                        {{ $kegiatan->links() }}
+                    </div>
+                @endif
             </div>
         </div>
 
         @include('kegiatan.create')
         @include('kegiatan.edit')
-        @include('kegiatan.show')
     </div>
 </x-app-layout>

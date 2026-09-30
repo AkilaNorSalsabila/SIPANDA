@@ -39,6 +39,11 @@
         .pc-row { font-size: 12px; color: #334155; margin-bottom: 3px; font-family: sans-serif; }
         .pc-row b { color: #0f172a; }
         .pc-hr { margin: 8px 0; border: none; border-top: 1px solid #e2e8f0; }
+        .pc-sub {
+            margin-top: 6px; padding: 6px 8px; background: #f8fafc;
+            border-left: 3px solid #0d9488; border-radius: 4px;
+        }
+        .pc-sub-title { font-size: 10px; font-weight: 800; color: #0d9488; text-transform: uppercase; margin-bottom: 3px; font-family: sans-serif; }
         .pc-warn-box {
             margin-top: 8px; padding: 8px 10px; background: #fef2f2;
             border: 1px solid #fecaca; border-radius: 8px; font-size: 11px;
@@ -221,7 +226,7 @@
 
     {{-- ================= MODAL DETAIL STATISTIK ================= --}}
     <div id="modalStatistik" class="hidden fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/50">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[85vh] flex flex-col">
             <div class="flex items-start justify-between px-5 py-4 border-b border-slate-200">
                 <div>
                     <h3 id="modalJudul" class="font-bold text-slate-800 text-sm"></h3>
@@ -234,8 +239,10 @@
                     <thead class="bg-slate-50 text-slate-500 uppercase sticky top-0">
                         <tr>
                             <th class="px-3 py-2 text-left">No. Urut Bangunan</th>
+                            <th class="px-3 py-2 text-left">No. Urut Rumah Tangga</th>
                             <th class="px-3 py-2 text-left">Nama Usaha</th>
-                            <th class="px-3 py-2 text-left">Nama Keluarga</th>
+                            <th class="px-3 py-2 text-left">Nama Kepala Keluarga (KK)</th>
+                            <th class="px-3 py-2 text-left">Nama Kepala Rumah Tangga (KRT)</th>
                         </tr>
                     </thead>
                     <tbody id="modalBody" class="divide-y divide-slate-100 text-slate-700"></tbody>
@@ -371,10 +378,12 @@
                 ? daftar.map(r => `
                     <tr>
                         <td class="px-3 py-2 font-semibold">${esc(r.nomor_bangunan)}</td>
+                        <td class="px-3 py-2">${esc(r.nomor_urut_rt)}</td>
                         <td class="px-3 py-2">${esc(r.nama_usaha)}</td>
                         <td class="px-3 py-2">${esc(r.nama_keluarga)}</td>
+                        <td class="px-3 py-2">${esc(r.nama_rumah_tangga)}</td>
                     </tr>`).join('')
-                : `<tr><td colspan="3" class="px-3 py-6 text-center text-slate-400">Belum ada bangunan di SLS ini.</td></tr>`;
+                : `<tr><td colspan="5" class="px-3 py-6 text-center text-slate-400">Belum ada bangunan di SLS ini.</td></tr>`;
 
             document.getElementById('modalStatistik').classList.remove('hidden');
         }
@@ -539,8 +548,33 @@
                 ? `${d.sls_tercatat.nama_sls}${d.sls_tercatat.desa_kelurahan ? ', ' + d.sls_tercatat.desa_kelurahan : ''}`
                 : '-';
 
-            const keterangan = adaUsaha ? (d.usaha[0].jenis_usaha ?? '-')
-                : (adaRt ? `No. KK: ${d.rumah_tangga[0].nomor_kk ?? '-'}` : 'Belum diisi manual');
+            // ---- 5 standar informasi: blok Rumah Tangga (No. Urut RT, Nama KK, Nama KRT) ----
+            const blokRt = adaRt
+                ? d.rumah_tangga.map(rt => `
+                    <div class="pc-sub">
+                        <div class="pc-sub-title">Rumah Tangga</div>
+                        <div class="pc-row">No. Urut Rumah Tangga: <b>${esc(rt.nomor_urut_rumah_tangga)}</b></div>
+                        <div class="pc-row">Nama Kepala Keluarga (KK): <b>${esc(rt.nama_kepala_keluarga)}</b></div>
+                        <div class="pc-row">Nama Kepala Rumah Tangga (KRT): <b>${esc(rt.nama_kepala_rumah_tangga)}</b></div>
+                    </div>`).join('')
+                : `<div class="pc-sub">
+                        <div class="pc-sub-title">Rumah Tangga</div>
+                        <div class="pc-row">No. Urut Rumah Tangga: <b>-</b></div>
+                        <div class="pc-row">Nama Kepala Keluarga (KK): <b>-</b></div>
+                        <div class="pc-row">Nama Kepala Rumah Tangga (KRT): <b>-</b></div>
+                   </div>`;
+
+            // ---- 5 standar informasi: blok Usaha (Nama Usaha) ----
+            const blokUsaha = adaUsaha
+                ? d.usaha.map(u => `
+                    <div class="pc-sub">
+                        <div class="pc-sub-title">Usaha</div>
+                        <div class="pc-row">Nama Usaha: <b>${esc(u.nama_usaha)}</b></div>
+                    </div>`).join('')
+                : `<div class="pc-sub">
+                        <div class="pc-sub-title">Usaha</div>
+                        <div class="pc-row">Nama Usaha: <b>-</b></div>
+                   </div>`;
 
             let kotak = '';
 
@@ -577,14 +611,15 @@
             const gnav = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(d.latitude + ',' + d.longitude)}`;
 
             return `
-                <div style="min-width:250px; max-width:280px">
+                <div style="min-width:250px; max-width:290px; max-height:360px; overflow-y:auto">
                     <div class="pc-badges">${badges}</div>
                     <div class="pc-title">${esc(judul)}</div>
                     <div class="pc-row">Nomor Bangunan: <b>${esc(d.nomor_bangunan ?? '-')}</b></div>
                     <div class="pc-row">Wilayah (SLS): <b>${esc(wilayah)}</b></div>
-                    <div class="pc-row">Keterangan: <b>${esc(keterangan)}</b></div>
                     <div class="pc-row">ID SLS Tercatat: <b>${esc(d.sls_tercatat?.id_sls ?? '-')}</b></div>
                     <div class="pc-row">Jumlah KK: <b>${esc(d.jumlah_kk)}</b> &nbsp;|&nbsp; Jumlah Usaha: <b>${esc(d.jumlah_usaha)}</b></div>
+                    ${blokRt}
+                    ${blokUsaha}
                     ${kotak}
                     <div class="pc-actions">
                         <a href="${gmaps}" target="_blank" rel="noopener" class="pc-btn pc-btn-secondary">📍 Lihat Maps</a>

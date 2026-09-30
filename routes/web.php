@@ -48,7 +48,7 @@ Route::middleware(['auth', 'approved', EnsureUserIsAdmin::class])->group(functio
     Route::post('/import/titik-lokasi', [ImportController::class, 'storeTitikLokasi'])->name('import.titik-lokasi');
 
     // ================= KEGIATAN =================
-    Route::resource('kegiatan', KegiatanController::class);
+    Route::resource('kegiatan', KegiatanController::class)->except(['show']);
 });
 
 require __DIR__.'/auth.php';

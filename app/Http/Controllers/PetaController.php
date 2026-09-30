@@ -124,8 +124,13 @@ class PetaController extends Controller
             return [
                 'id'             => $b->id,
                 'nomor_bangunan' => $b->nomor_bangunan ?? '-',
+                // No. Urut Rumah Tangga (Blok V.A kolom 8)
+                'nomor_urut_rt'  => $rt->pluck('nomor_urut_rumah_tangga')->filter()->unique()->join(', ') ?: '-',
                 'nama_usaha'     => $b->usaha->pluck('nama_usaha')->filter()->join(', ') ?: '-',
+                // Nama Kepala Keluarga / KK (Blok V.A kolom 3)
                 'nama_keluarga'  => $rt->pluck('nama_kepala_keluarga')->filter()->join(', ') ?: '-',
+                // Nama Kepala Rumah Tangga / KRT (Blok V.A kolom 10)
+                'nama_rumah_tangga' => $rt->pluck('nama_kepala_rumah_tangga')->filter()->unique()->join(', ') ?: '-',
             ];
         });
 
@@ -192,11 +197,17 @@ class PetaController extends Controller
             'sls_aktual'  => $slsAktual,
             'jarak_meter' => $jarakMeter,
 
+            // 5 standar informasi (per rumah tangga dalam bangunan ini):
+            // no. urut bangunan (di atas), no. urut rumah tangga, nama usaha,
+            // nama keluarga (KK), nama rumah tangga (KRT). Kosong -> null,
+            // ditampilkan sebagai "-" di sisi blade.
             'rumah_tangga' => $bangunan->rumahTangga->map(fn ($rt) => [
-                'id'                   => $rt->id,
-                'nomor_kk'             => $rt->nomorKkTersamar(),
-                'nama_kepala_keluarga' => $rt->nama_kepala_keluarga,
-                'jumlah_anggota'       => $rt->jumlah_anggota,
+                'id'                     => $rt->id,
+                'nomor_kk'               => $rt->nomorKkTersamar(),
+                'nomor_urut_rumah_tangga'=> $rt->nomor_urut_rumah_tangga,
+                'nama_kepala_keluarga'   => $rt->nama_kepala_keluarga,
+                'nama_kepala_rumah_tangga' => $rt->nama_kepala_rumah_tangga,
+                'jumlah_anggota'         => $rt->jumlah_anggota,
             ]),
             'usaha' => $bangunan->usaha->map(fn ($u) => [
                 'id'          => $u->id,
