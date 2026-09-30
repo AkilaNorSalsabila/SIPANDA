@@ -196,14 +196,6 @@
                                     <span class="w-3 h-3 rounded-full bg-slate-500 inline-block"></span>
                                     Belum bisa dicek (batas SLS belum ada)
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="w-3 h-3 rounded-full bg-blue-500 inline-block" style="box-shadow:0 0 0 2px #8b5cf6"></span>
-                                    Cincin ungu: titik bergerombol
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="w-3 h-3 rounded-full bg-red-500 inline-block" style="box-shadow:0 0 0 2px #ef4444"></span>
-                                    Cincin merah: di luar batas SLS
-                                </div>
                             </div>
                         </div>
 
@@ -622,6 +614,7 @@
             const kunci = (x, y) => x + ',' + y;
 
             features.forEach(f => {
+                if (! f.geometry?.coordinates) { f.properties._gerombol = false; return; }
                 const [lng, lat] = f.geometry.coordinates;
                 const k = kunci(Math.floor(lng / sel), Math.floor(lat / sel));
                 if (! grid.has(k)) grid.set(k, []);
@@ -629,6 +622,7 @@
             });
 
             features.forEach(f => {
+                if (! f.geometry?.coordinates) { f.properties._gerombol = false; return; }
                 const [lng, lat] = f.geometry.coordinates;
                 const cx = Math.floor(lng / sel), cy = Math.floor(lat / sel);
                 const mPerLng = 111320 * Math.cos(lat * Math.PI / 180);
@@ -899,5 +893,13 @@
 
         aturToggleQc(null);   // kondisi awal: belum ada kegiatan dipilih
         muatSls();
+
+        // Buka dari dashboard: /peta?kegiatan=ID langsung memilih kegiatan itu
+        const kegiatanAwal = new URLSearchParams(window.location.search).get('kegiatan');
+        if (kegiatanAwal) {
+            const pilihan = document.getElementById('filterKegiatan');
+            pilihan.value = kegiatanAwal;
+            if (pilihan.value === kegiatanAwal) gantiKegiatan();
+        }
     </script>
 </x-app-layout>

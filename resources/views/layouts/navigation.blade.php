@@ -2,8 +2,10 @@
 @php
     $authUser  = Auth::user();
     $isAdmin   = $authUser->isAdmin();
-    // Viewer hanya boleh melihat peta; Import Data khusus admin
-    $canImport = $isAdmin;
+    // Viewer hanya boleh melihat Dashboard dan Peta.
+    // Kegiatan, Import Data, dan Manajemen Akun khusus admin.
+    $canImport   = $isAdmin;
+    $canKegiatan = $isAdmin;
 @endphp
 
 <style>
@@ -24,8 +26,8 @@
 
     <!-- ============ SIDEBAR (desktop) ============ -->
     <aside class="hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:w-64 bg-teal-700">
-        <!-- Logo -->
-        <div class="h-16 flex items-center gap-2.5 px-5 border-b border-teal-600/60">
+        <!-- Logo (tinggi h-20 = sama dengan header konten di app.blade.php) -->
+        <div class="h-20 flex items-center gap-2.5 px-5 border-b border-teal-600/60">
             <a href="{{ route('dashboard') }}" class="flex items-center gap-2.5">
                 <img src="{{ asset('images/logo-sipanda.png') }}" alt="Logo SIPANDA" class="logo-nav">
                 <span class="text-white font-bold text-sm tracking-wide">SIPANDA</span>
@@ -49,28 +51,21 @@
                 Dashboard
             </a>
 
-             <a href="{{ route('kegiatan.index') }}"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
-                       {{ request()->routeIs('kegiatan.*')
-                            ? 'bg-white text-teal-700 shadow-sm'
-                            : 'text-teal-50 hover:bg-teal-600/60' }}">
-                  <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5a3 3 0 006 0" /> <path stroke-linecap="round" stroke-linejoin="round" d="M9 13l2 2 4-4M9 18h6" />
-                </svg>
-                Kegiatan
-            </a>
-
-            <a href="{{ route('peta.index') }}"
-                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
-                       {{ request()->routeIs('peta.*')
-                            ? 'bg-white text-teal-700 shadow-sm'
-                            : 'text-teal-50 hover:bg-teal-600/60' }}">
-                <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                </svg>
-                Peta
-            </a>
+            {{-- Kegiatan: khusus admin --}}
+            @if ($canKegiatan)
+                <a href="{{ route('kegiatan.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                           {{ request()->routeIs('kegiatan.*')
+                                ? 'bg-white text-teal-700 shadow-sm'
+                                : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5a3 3 0 006 0" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 13l2 2 4-4M9 18h6" />
+                    </svg>
+                    Kegiatan
+                </a>
+            @endif
 
             @if ($canImport)
                 <a href="{{ route('import.index') }}"
@@ -84,6 +79,17 @@
                     Import Data
                 </a>
             @endif
+
+            <a href="{{ route('peta.index') }}"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                       {{ request()->routeIs('peta.*')
+                            ? 'bg-white text-teal-700 shadow-sm'
+                            : 'text-teal-50 hover:bg-teal-600/60' }}">
+                <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+                Peta
+            </a>
 
             {{-- ===== Administrasi (khusus admin) ===== --}}
             @if ($isAdmin)
@@ -192,16 +198,21 @@
                            {{ request()->routeIs('dashboard') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
                     Dashboard
                 </a>
-                <a href="{{ route('kegiatan.index') }}"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                           {{ request()->routeIs('kegiatan.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
-                    Kegiatan
-                </a>
+
+                @if ($canKegiatan)
+                    <a href="{{ route('kegiatan.index') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                               {{ request()->routeIs('kegiatan.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                        Kegiatan
+                    </a>
+                @endif
+
                 <a href="{{ route('peta.index') }}"
                     class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                            {{ request()->routeIs('peta.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
                     Peta
                 </a>
+
                 @if ($canImport)
                     <a href="{{ route('import.index') }}"
                         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
@@ -209,6 +220,7 @@
                         Import Data
                     </a>
                 @endif
+
                 @if ($isAdmin)
                     <a href="{{ route('admin.users.index') }}"
                         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
