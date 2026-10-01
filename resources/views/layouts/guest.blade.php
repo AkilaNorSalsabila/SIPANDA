@@ -8,7 +8,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $pageTitle }} — SIPANDA</title>
+    @include('layouts.partials.head-meta')
     <link rel="icon" type="image/png" href="{{ asset('images/logo-sipanda.png') }}">
 
     {{-- Sesuaikan dengan setup Vite/Tailwind hasil `php artisan breeze:install blade` --}}

@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('app.name', 'Laravel') }}</title>
+        @include('layouts.partials.head-meta')
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -22,7 +22,6 @@
             <div class="lg:ms-64">
                 <!-- Page Heading -->
                 @isset($header)
-                    {{-- Tinggi tetap: h-16 (mobile, sama dengan topbar) dan lg:h-20 (desktop, sama dengan header logo sidebar) --}}
                     <header class="bg-white border-b border-slate-200">
                         <div class="h-16 lg:h-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center">
                             {{ $header }}
