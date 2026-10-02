@@ -35,7 +35,7 @@ class DashboardController extends Controller
             ['label' => 'Belum bisa dicek',         'nilai' => $belum,  'warna' => '#64748b'],
         ];
 
-        // Gradien donat (tanpa library grafik)
+      
         $stops = [];
         $acc = 0;
         foreach ($segmen as $s) {
@@ -85,7 +85,7 @@ class DashboardController extends Controller
         ));
     }
 
-    /** Jalankan query yang mungkin gagal; hasil null = bagian itu tidak ditampilkan. */
+   
     private function coba(callable $fn)
     {
         try {

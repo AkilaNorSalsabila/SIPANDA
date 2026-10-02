@@ -4,8 +4,7 @@ use App\Http\Controllers\Admin\UserApprovalController;
 use Illuminate\Support\Facades\Route;
 
 /*
-| Route khusus admin. Dimuat dari routes/web.php lewat:
-|     require __DIR__.'/admin.php';
+| Route khusus admin. 
 */
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/users', [UserApprovalController::class, 'index'])->name('users.index');

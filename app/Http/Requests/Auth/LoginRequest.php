@@ -25,10 +25,7 @@ class LoginRequest extends FormRequest
         ];
     }
 
-    /**
-     * Coba autentikasi. Deteksi otomatis apakah input berupa
-     * email atau username, lalu cocokkan ke kolom yang sesuai.
-     */
+  
     public function authenticate(): void
     {
         $this->ensureIsNotRateLimited();

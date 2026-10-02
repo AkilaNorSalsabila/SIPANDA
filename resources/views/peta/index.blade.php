@@ -410,8 +410,6 @@
                 });
         }
 
-        // Batas SLS hanya digambar kalau kegiatan sudah dipilih.
-        // Kalau ada SLS terpilih, yang digambar cuma SLS itu (kalau punya polygon).
         function renderSls() {
             if (slsLayer) {
                 map.removeLayer(slsLayer);
@@ -452,7 +450,7 @@
             slsTerpilih = id;
             map.closePopup();
             renderSls();
-            renderBangunan();   // harus sebelum zoom, supaya titik sudah ada
+            renderBangunan();   
             zoomKeSls();
         }
 
@@ -548,7 +546,7 @@
                 ? `${d.sls_tercatat.nama_sls}${d.sls_tercatat.desa_kelurahan ? ', ' + d.sls_tercatat.desa_kelurahan : ''}`
                 : '-';
 
-            // ---- 5 standar informasi: blok Rumah Tangga (No. Urut RT, Nama KK, Nama KRT) ----
+            // ---- 5 standar informasi ----
             const blokRt = adaRt
                 ? d.rumah_tangga.map(rt => `
                     <div class="pc-sub">
@@ -630,8 +628,8 @@
         }
 
         // ================= QC SPASIAL =================
-        const JARAK_GEROMBOL_M = 15;   // radius dianggap "berdekatan" (meter)
-        const MIN_GEROMBOL = 3;        // minimal titik (termasuk dirinya) agar dianggap bergerombol
+        const JARAK_GEROMBOL_M = 15;   
+        const MIN_GEROMBOL = 3;        
 
         function qcOn(id) {
             return document.getElementById(id).checked;
@@ -642,7 +640,7 @@
             return { luar: p.status_kondisi === 'di_luar_sls', gerombol: !! p._gerombol };
         }
 
-        // Tandai titik bergerombol (pakai grid supaya ringan untuk ribuan titik)
+        
         function hitungBergerombol(features) {
             const sel = 0.00015;   // ± 16 meter
             const grid = new Map();
@@ -676,7 +674,6 @@
             });
         }
 
-        // Cincin sorotan di sekeliling titik (string box-shadow, berakhir dengan koma kalau ada isi)
         function ringQc(feature) {
             const q = qcFlag(feature);
             const ring = [];
@@ -738,7 +735,7 @@
             });
         }
 
-        // Ikon cluster: gaya bawaan markercluster + cincin merah kalau berisi titik luar batas
+     
         function iconCluster(cluster) {
             const anak = cluster.getAllChildMarkers();
             const n = anak.length;
@@ -774,7 +771,6 @@
                 });
         }
 
-        // Semua SLS: titik kecil. 1 SLS dipilih: marker bernomor.
         // Titik berdekatan otomatis digabung (cluster) dan menyebar saat diklik/di-zoom.
         function renderBangunan() {
             if (bangunanLayer) {
@@ -811,7 +807,7 @@
 
             aturToggleQc(hitung);   // harus sebelum membaca toggle "Hanya ..."
 
-            // Filter "Hanya ...": kalau dua-duanya aktif, tampilkan gabungan keduanya
+            // Filter "Hanya ...": 
             const hanyaLuar = qcOn('qcHanyaLuar');
             const hanyaGerombol = qcOn('qcHanyaGerombol');
             const fitur = (hanyaLuar || hanyaGerombol)
@@ -831,7 +827,6 @@
 
             if (! qcAktif()) {
                 // Mode biasa: titik apa adanya, tanpa cluster
-                // (semua SLS = titik kecil, 1 SLS dipilih = marker bernomor)
                 bangunanLayer = L.geoJSON({ type: 'FeatureCollection', features: fitur }, {
                     pointToLayer: (feature, latlng) => {
                         const status = feature.properties.status_kondisi;

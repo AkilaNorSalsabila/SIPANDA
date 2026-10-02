@@ -18,7 +18,6 @@ class RumahTangga extends Model
         'nama_kepala_keluarga',
         'jumlah_anggota',
         'alamat',
-        // Blok V.A: pemisahan Keluarga (KK) dan Rumah Tangga (KRT)
         'nomor_urut_keluarga',
         'nomor_urut_rumah_tangga',
         'identifikasi_kk_krt',
@@ -30,10 +29,6 @@ class RumahTangga extends Model
         return $this->belongsTo(Bangunan::class);
     }
 
-    /**
-     * Tampilkan nomor KK yang disamarkan
-     * Dipakai di blade: {{ $rumahTangga->nomorKkTersamar() }}
-     */
     public function nomorKkTersamar(): ?string
     {
         if (! $this->nomor_kk) {

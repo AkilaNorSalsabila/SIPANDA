@@ -39,7 +39,6 @@ Route::middleware(['auth', 'approved'])->group(function () {
 |--------------------------------------------------------------------------
 | Khusus admin
 |--------------------------------------------------------------------------
-| Import Data dan Kegiatan. Viewer yang membuka URL-nya langsung dapat 403.
 */
 Route::middleware(['auth', 'approved', EnsureUserIsAdmin::class])->group(function () {
     // ================= IMPORT DATA =================

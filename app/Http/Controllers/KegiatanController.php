@@ -39,7 +39,6 @@ class KegiatanController extends Controller
 
     /**
      * Tambah, edit, dan detail berupa popup di halaman index,
-     * jadi create/edit/show hanya jaga-jaga kalau URL-nya diakses langsung.
      */
     public function create()
     {
@@ -61,8 +60,6 @@ class KegiatanController extends Controller
         $data = $this->validatedWithPeriode($request);
 
         try {
-            // Kode dibuat di server (bukan dari input) dan di dalam transaksi
-            // supaya dua pengguna yang menyimpan bersamaan tidak mendapat kode sama.
             DB::transaction(function () use ($data) {
                 Kegiatan::create([
                     'kode_kegiatan' => $this->nextKode(),
@@ -128,8 +125,6 @@ class KegiatanController extends Controller
 
         try {
             DB::transaction(function () use ($kegiatan) {
-                // Hapus dulu data anak (bangunan & riwayat import), baru kegiatannya,
-                // supaya tidak ada data yang tertinggal tanpa kegiatan induk.
                 $kegiatan->bangunan()->delete();
                 $kegiatan->importBatches()->delete();
                 $kegiatan->delete();
@@ -148,12 +143,6 @@ class KegiatanController extends Controller
             ->route('kegiatan.index')
             ->with('status', "Kegiatan \"{$nama}\" beserta seluruh datanya berhasil dihapus.");
     }
-
-    /**
-     * Kode berikutnya dengan format KD-001, KD-002, dst.
-     * Diambil dari angka terbesar yang ada, sehingga tetap unik
-     * walaupun ada kegiatan yang dihapus.
-     */
     private function nextKode(): string
     {
         $terakhir = Kegiatan::where('kode_kegiatan', 'like', 'KD-%')
@@ -165,11 +154,6 @@ class KegiatanController extends Controller
         return 'KD-' . str_pad($terakhir + 1, 3, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * Susun teks periode dari rentang bulan-tahun.
-     * "Agustus 2026" (kalau selesai kosong/sama), atau
-     * "Agustus 2026 - Desember 2026" kalau rentangnya beda.
-     */
     private function buildPeriode(int $bulanMulai, int $tahunMulai, ?int $bulanSelesai, ?int $tahunSelesai): string
     {
         $awal = self::BULAN[$bulanMulai] . ' ' . $tahunMulai;
@@ -185,10 +169,6 @@ class KegiatanController extends Controller
         return $awal . ' - ' . self::BULAN[$bulanSelesai] . ' ' . $tahunSelesai;
     }
 
-    /**
-     * Validasi nama dan rentang bulan-tahun, sekaligus menyusun kolom 'periode'.
-     * Dipakai bareng oleh store() dan update().
-     */
     private function validatedWithPeriode(Request $request): array
     {
         $validated = $request->validate([

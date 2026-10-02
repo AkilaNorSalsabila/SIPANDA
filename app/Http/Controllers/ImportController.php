@@ -29,9 +29,7 @@ class ImportController extends Controller
 
     /**
      * Import batas_sls.geojson -> tabel sls (data dasar wilayah, dipakai
-     * bersama oleh semua kegiatan, TIDAK terikat ke satu kegiatan tertentu
-     * secara data — kolom kegiatan_id di sini cuma metadata "kegiatan mana
-     * yang memicu import ini").
+     * bersama oleh semua kegiatan)
      */
     public function storeBatasSls(Request $request): RedirectResponse
     {
@@ -109,14 +107,6 @@ class ImportController extends Controller
      * WAJIB dijalankan SETELAH import batas SLS, karena tiap titik
      * dicocokkan ke SLS yang sudah ada di database lewat kode SLS.
      *
-     * Kode SLS diambil dengan fallback berlapis, karena field "idsls"
-     * kadang kosong (null) di data lapangan walau titiknya sebenarnya
-     * masih punya kode wilayah lewat field lain:
-     *   1. idsls              (kode SLS hasil resolve otomatis)
-     *   2. level_5_full_code  (kode gabungan level 5, biasanya sama isinya)
-     *   3. idsubsls           (kode sub-SLS, sering identik juga)
-     * Kalau ketiganya kosong, bangunan tetap disimpan tapi tanpa SLS
-     * (sls_id null) dan dicatat di error_log supaya kelihatan di riwayat.
      */
     public function storeTitikLokasi(Request $request): RedirectResponse
     {
@@ -238,9 +228,7 @@ class ImportController extends Controller
     }
 
     /**
-     * Validasi ringan: pastikan file yang diupload memang JSON/GeoJSON valid.
-     * Tidak pakai rule "mimes" bawaan Laravel karena ekstensi .geojson
-     * tidak dikenali di daftar mime bawaannya.
+     * Validasi ringan: pastikan file yang diupload memang JSON/GeoJSON valid..
      */
     private function pastikanFileGeoJson(Request $request): void
     {

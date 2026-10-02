@@ -42,11 +42,7 @@ class ImportMojokerto extends Command
 
         $this->info("Kegiatan tujuan: [{$kegiatan->kode_kegiatan}] {$kegiatan->nama_kegiatan}");
 
-        // ---------------------------------------------------------------
-        // 1) Master SLS (kode + nama saja, polygon belum ada -> area NULL)
-        //    updateOrCreate tidak menyentuh kolom "area", jadi kalau polygon
-        //    sudah pernah diimpor, polygon-nya tetap aman.
-        // ---------------------------------------------------------------
+
         $this->info('1/3 Mengimpor master SLS...');
         $jumlahSls = 0;
 
@@ -71,9 +67,7 @@ class ImportMojokerto extends Command
         });
 
         // ---------------------------------------------------------------
-        // 2) Titik usaha. ATURAN: 1 baris = 1 titik = 1 bangunan (+ 1 usaha).
-        //    Tidak digabung per (SLS + no_bang), karena di data sumber
-        //    nomor itu bukan penanda bangunan yang konsisten.
+        
         // ---------------------------------------------------------------
         $this->info('2/3 Mengimpor titik usaha...');
 
@@ -171,9 +165,7 @@ class ImportMojokerto extends Command
     }
 
     /**
-     * Baca CSV baris demi baris, hasilnya array asosiatif (header => nilai).
-     * Parameter escape ditulis eksplisit supaya tidak muncul peringatan
-     * deprecated di PHP 8.4.
+     * Baca CSV baris 
      */
     private function bacaCsv(string $path): \Generator
     {

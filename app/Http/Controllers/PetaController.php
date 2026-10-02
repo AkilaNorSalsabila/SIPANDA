@@ -18,11 +18,6 @@ class PetaController extends Controller
         return view('peta.index', compact('kegiatanList'));
     }
 
-    /**
-     * Daftar SLS untuk dropdown. TIDAK bergantung pada polygon, jadi SLS
-     * yang belum punya batas (area NULL) tetap muncul. Hanya SLS yang
-     * punya bangunan di kegiatan terpilih.
-     */
     public function daftarSls(Request $request): JsonResponse
     {
         $request->validate(['kegiatan_id' => ['required', 'exists:kegiatan,id']]);
@@ -197,10 +192,7 @@ class PetaController extends Controller
             'sls_aktual'  => $slsAktual,
             'jarak_meter' => $jarakMeter,
 
-            // 5 standar informasi (per rumah tangga dalam bangunan ini):
-            // no. urut bangunan (di atas), no. urut rumah tangga, nama usaha,
-            // nama keluarga (KK), nama rumah tangga (KRT). Kosong -> null,
-            // ditampilkan sebagai "-" di sisi blade.
+            // 5 standar informasi 
             'rumah_tangga' => $bangunan->rumahTangga->map(fn ($rt) => [
                 'id'                     => $rt->id,
                 'nomor_kk'               => $rt->nomorKkTersamar(),
