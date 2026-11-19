@@ -61,6 +61,18 @@
             </div>
         </div>
 
+        <div>
+            <label for="role_diminta" class="block text-xs font-semibold text-slate-700 mb-1.5">Daftar sebagai</label>
+            <select id="role_diminta" name="role_diminta"
+                class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800
+                       focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500 transition">
+                @foreach (\App\Models\User::ROLE as $kode => $nama)
+                    <option value="{{ $kode }}" @selected(old('role_diminta', 'viewer') === $kode)>{{ $nama }}</option>
+                @endforeach
+            </select>
+            <p class="mt-1 text-[11px] text-slate-400">Peran Admin hanya berlaku jika disetujui admin yang sudah ada.</p>
+        </div>
+
         <div class="flex gap-2.5 p-3 bg-teal-50 border border-teal-100 text-teal-800 text-xs rounded-xl leading-relaxed">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mt-0.5 shrink-0 text-teal-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8h.01M11 12h1v4h1"/>

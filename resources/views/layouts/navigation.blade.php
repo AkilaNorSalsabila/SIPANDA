@@ -6,6 +6,10 @@
     // Kegiatan, Import Data, dan Manajemen Akun khusus admin.
     $canImport   = $isAdmin;
     $canKegiatan = $isAdmin;
+
+    // Menu Tagging: tersedia untuk semua peran. Viewer hanya bisa di SLS penugasannya.
+    $halamanTagging = request()->routeIs('peta.index') && request()->query('mode') === 'tagging';
+    $jumlahTugas    = $isAdmin ? null : \App\Models\PenugasanSls::where('user_id', $authUser->id)->count();
 @endphp
 
 <style>
@@ -80,9 +84,18 @@
                 </a>
             @endif
 
+            <a href="{{ route('data-lokasi.index') }}"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                       {{ request()->routeIs('data-lokasi.*') ? 'bg-white text-teal-700 shadow-sm' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M10 3v18M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                </svg>
+                Data Lokasi
+            </a>
+
             <a href="{{ route('peta.index') }}"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
-                       {{ request()->routeIs('peta.*')
+                       {{ request()->routeIs('peta.*') && ! $halamanTagging
                             ? 'bg-white text-teal-700 shadow-sm'
                             : 'text-teal-50 hover:bg-teal-600/60' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -91,11 +104,75 @@
                 Peta
             </a>
 
+            {{-- Tagging: admin & viewer (viewer hanya di SLS penugasan) --}}
+            <a href="{{ route('peta.index', ['mode' => 'tagging']) }}"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                       {{ $halamanTagging ? 'bg-white text-teal-700 shadow-sm' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v6m-3-3h6" />
+                </svg>
+                Tagging
+                @if (! $isAdmin)
+                    <span class="ms-auto min-w-[1.25rem] text-center text-[10px] font-bold px-1.5 py-0.5 rounded-full {{ $jumlahTugas ? 'bg-amber-400 text-teal-900' : 'bg-teal-800 text-teal-200' }}">
+                        {{ $jumlahTugas }} SLS
+                    </span>
+                @endif
+            </a>
+
+            @unless ($isAdmin)
+                <a href="{{ route('penugasan.saya') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                           {{ request()->routeIs('penugasan.saya') ? 'bg-white text-teal-700 shadow-sm' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 5h6M9 12h6M9 16h4" />
+                    </svg>
+                    Penugasan Saya
+                </a>
+            @endunless
+
             {{-- ===== Administrasi (khusus admin) ===== --}}
             @if ($isAdmin)
                 <p class="px-3 pt-5 mb-2 text-[10px] font-semibold uppercase tracking-wider text-teal-200/70">
                     Administrasi
                 </p>
+
+                <a href="{{ route('kecamatan.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                           {{ request()->routeIs('kecamatan.*') ? 'bg-white text-teal-700 shadow-sm' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Kecamatan
+                </a>
+
+                <a href="{{ route('kelurahan.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                           {{ request()->routeIs('kelurahan.*') ? 'bg-white text-teal-700 shadow-sm' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    Kelurahan
+                </a>
+
+                <a href="{{ route('admin.penugasan.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                           {{ request()->routeIs('admin.penugasan.*') ? 'bg-white text-teal-700 shadow-sm' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 5h6M9 14l2 2 4-4" />
+                    </svg>
+                    Penugasan Mitra
+                </a>
+
+                <a href="{{ route('admin.progres.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                           {{ request()->routeIs('admin.progres.*') ? 'bg-white text-teal-700 shadow-sm' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Progres Mitra
+                </a>
 
                 <a href="{{ route('admin.users.index') }}"
                     class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
@@ -112,6 +189,15 @@
                             {{ $pendingCount }}
                         </span>
                     @endif
+                </a>
+
+                <a href="{{ route('riwayat.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                           {{ request()->routeIs('riwayat.*') ? 'bg-white text-teal-700 shadow-sm' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Riwayat Aktivitas
                 </a>
             @endif
         </nav>
@@ -207,11 +293,34 @@
                     </a>
                 @endif
 
+                <a href="{{ route('data-lokasi.index') }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                           {{ request()->routeIs('data-lokasi.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    Data Lokasi
+                </a>
+
                 <a href="{{ route('peta.index') }}"
                     class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                           {{ request()->routeIs('peta.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                           {{ request()->routeIs('peta.*') && ! $halamanTagging ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
                     Peta
                 </a>
+
+                <a href="{{ route('peta.index', ['mode' => 'tagging']) }}"
+                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                           {{ $halamanTagging ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                    Tagging
+                    @if (! $isAdmin)
+                        <span class="ms-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full {{ $jumlahTugas ? 'bg-amber-400 text-teal-900' : 'bg-teal-800 text-teal-200' }}">{{ $jumlahTugas }} SLS</span>
+                    @endif
+                </a>
+
+                @unless ($isAdmin)
+                    <a href="{{ route('penugasan.saya') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                               {{ request()->routeIs('penugasan.saya') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                        Penugasan Saya
+                    </a>
+                @endunless
 
                 @if ($canImport)
                     <a href="{{ route('import.index') }}"
@@ -222,6 +331,30 @@
                 @endif
 
                 @if ($isAdmin)
+                    <a href="{{ route('kecamatan.index') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                               {{ request()->routeIs('kecamatan.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                        Kecamatan
+                    </a>
+
+                    <a href="{{ route('kelurahan.index') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                               {{ request()->routeIs('kelurahan.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                        Kelurahan
+                    </a>
+
+                    <a href="{{ route('admin.penugasan.index') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                               {{ request()->routeIs('admin.penugasan.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                        Penugasan Mitra
+                    </a>
+
+                    <a href="{{ route('admin.progres.index') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                               {{ request()->routeIs('admin.progres.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                        Progres Mitra
+                    </a>
+
                     <a href="{{ route('admin.users.index') }}"
                         class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                                {{ request()->routeIs('admin.users.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
@@ -229,6 +362,12 @@
                         @if (($pendingCount ?? 0) > 0)
                             <span class="ms-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-400 text-teal-900">{{ $pendingCount }}</span>
                         @endif
+                    </a>
+
+                    <a href="{{ route('riwayat.index') }}"
+                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+                               {{ request()->routeIs('riwayat.*') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                        Riwayat Aktivitas
                     </a>
                 @endif
             </nav>

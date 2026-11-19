@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\Riwayat;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -38,11 +39,29 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        Riwayat::catat(
+            modul: 'auth',
+            aksi: 'login',
+            keterangan: "{$user->name} masuk ke sistem",
+            objekId: $user->id,
+            objekLabel: "{$user->name} (@{$user->username})",
+        );
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 
     public function destroy(Request $request): RedirectResponse
     {
+        if ($user = $request->user()) {
+            Riwayat::catat(
+                modul: 'auth',
+                aksi: 'logout',
+                keterangan: "{$user->name} keluar dari sistem",
+                objekId: $user->id,
+                objekLabel: "{$user->name} (@{$user->username})",
+            );
+        }
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();

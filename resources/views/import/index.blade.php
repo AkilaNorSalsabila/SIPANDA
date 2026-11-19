@@ -31,7 +31,9 @@
                     </div>
                     <p class="text-xs text-slate-500 mb-4">
                         Upload <code>batas_sls.geojson</code>. Lakukan ini <b>terlebih dahulu</b>,
-                        sebelum import titik lokasi.
+                        sebelum import titik lokasi. Batas SLS tersimpan <b>per kegiatan</b>, jadi tidak
+                        mengubah batas kegiatan lain.
+                        Kalau batasnya sama dengan kegiatan lain, pakai <b>Salin SLS</b> di bawah.
                     </p>
 
                     <form method="POST" action="{{ route('import.batas-sls') }}" enctype="multipart/form-data" class="space-y-3">
@@ -70,7 +72,7 @@
                     </div>
                     <p class="text-xs text-slate-500 mb-4">
                         Upload <code>titik_lokasi.geojson</code>. Tiap titik dicocokkan ke
-                        SLS yang sudah ada lewat kode SLS-nya.
+                        SLS <b>kegiatan yang sama</b> lewat kode SLS-nya.
                     </p>
 
                     <form method="POST" action="{{ route('import.titik-lokasi') }}" enctype="multipart/form-data" class="space-y-3">
@@ -94,12 +96,69 @@
                                        file:border-0 file:bg-emerald-50 file:text-emerald-700 file:text-xs file:font-semibold">
                         </div>
 
+                        <label class="flex items-start gap-2 text-xs text-slate-600">
+                            <input type="checkbox" name="timpa_koreksi" value="1"
+                                class="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                            <span>
+                                <b>Timpa juga titik yang sudah dikoreksi.</b>
+                                Biarkan kosong agar titik yang sudah diperbaiki petugas/admin dilewati
+                                (hasil koreksi dipertahankan dan dilaporkan sebagai &quot;dilewati&quot;).
+                            </span>
+                        </label>
+
                         <button type="submit"
                             class="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition">
                             Upload &amp; Import Titik Lokasi
                         </button>
                     </form>
                 </div>
+            </div>
+
+            {{-- ================= SALIN SLS ANTAR KEGIATAN ================= --}}
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="w-2 h-2 rounded-full bg-sky-600"></span>
+                    <h3 class="font-semibold text-slate-800">Salin SLS dari kegiatan lain</h3>
+                </div>
+                <p class="text-xs text-slate-500 mb-4">
+                    Untuk kegiatan baru yang memakai batas SLS yang sama dengan kegiatan sebelumnya. Seluruh SLS beserta
+                    polygonnya disalin menjadi milik kegiatan tujuan, sehingga perubahan batas di satu kegiatan tidak
+                    memengaruhi kegiatan lain. SLS yang sudah ada di kegiatan tujuan tidak ditimpa.
+                </p>
+
+                <form method="POST" action="{{ route('import.salin-sls') }}" class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end"
+                      onsubmit="return confirm('Salin SLS dari kegiatan asal ke kegiatan tujuan?')">
+                    @csrf
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Salin dari kegiatan</label>
+                        <select name="dari_kegiatan_id" required
+                            class="w-full text-sm rounded-lg border-slate-300 focus:ring-teal-500 focus:border-teal-500">
+                            <option value="">-- kegiatan asal --</option>
+                            @foreach ($kegiatanList as $k)
+                                <option value="{{ $k->id }}">{{ $k->nama_kegiatan }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Ke kegiatan</label>
+                        <select name="ke_kegiatan_id" required
+                            class="w-full text-sm rounded-lg border-slate-300 focus:ring-teal-500 focus:border-teal-500">
+                            <option value="">-- kegiatan tujuan --</option>
+                            @foreach ($kegiatanList as $k)
+                                <option value="{{ $k->id }}">{{ $k->nama_kegiatan }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <button type="submit"
+                        class="py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold transition">
+                        Salin SLS
+                    </button>
+                </form>
+                @error('ke_kegiatan_id') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
+                @error('dari_kegiatan_id') <p class="mt-2 text-xs text-red-600">{{ $message }}</p> @enderror
             </div>
 
             {{-- ================= RIWAYAT IMPORT ================= --}}
@@ -120,6 +179,7 @@
                                 <th class="px-4 py-2 text-center">Valid</th>
                                 <th class="px-4 py-2 text-center">Bermasalah</th>
                                 <th class="px-4 py-2 text-left">Diupload oleh</th>
+                                <th class="px-4 py-2"></th>
                                 <th class="px-4 py-2"></th>
                             </tr>
                         </thead>
@@ -150,17 +210,35 @@
                                                 <ul class="mt-2 space-y-1 max-h-48 overflow-y-auto pr-2">
                                                     @foreach ($batch->error_log as $err)
                                                         <li class="text-slate-500">
-                                                            Baris {{ $err['baris'] }}: {{ $err['pesan'] }}
+                                                            @if (is_numeric($err['baris']))Baris {{ $err['baris'] }}: @endif{{ $err['pesan'] }}
                                                         </li>
                                                     @endforeach
                                                 </ul>
                                             </details>
                                         @endif
                                     </td>
+                                    <td class="px-4 py-3 text-right whitespace-nowrap">
+                                        @php
+                                            $n = $jejak[$batch->id] ?? 0;
+                                            $pesan = $n === 0
+                                                ? 'Hapus catatan import ini? Import ini tidak terlacak, jadi data hasil import tidak ikut dihapus.'
+                                                : ($batch->jenis_data === 'batas_sls'
+                                                    ? "Hapus import ini? Polygon {$n} SLS akan dikosongkan (SLS dan penugasannya tetap ada)."
+                                                    : "Hapus import ini? {$n} titik lokasi beserta usaha dan KK-nya akan dihapus. Titik hasil tagging petugas tidak ikut dihapus.");
+                                        @endphp
+                                        <form method="POST" action="{{ route('import.destroy', $batch) }}" class="inline"
+                                              onsubmit="return confirm({{ Js::from($pesan) }})">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="p-1.5 rounded-lg text-red-500 hover:bg-red-50" title="Hapus import ini">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </form>
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="px-4 py-6 text-center text-slate-400">
+                                    <td colspan="10" class="px-4 py-6 text-center text-slate-400">
                                         Belum ada riwayat import.
                                     </td>
                                 </tr>
@@ -174,6 +252,68 @@
                 </div>
             </div>
 
+
+            {{-- ===== Batas SLS yang sudah diimpor: hapus polygon per SLS ===== --}}
+            <div class="bg-white rounded-2xl ring-1 ring-slate-200/70 shadow-sm overflow-hidden mt-6">
+                <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h3 class="font-semibold text-slate-800">Batas SLS yang sudah diimpor</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            Salah impor? Hapus polygon SLS yang salah di sini satu per satu, lalu impor ulang yang benar.
+                            SLS, penugasan, dan titiknya tidak ikut terhapus.
+                            Total: <b>{{ number_format($slsBerpolygon->total()) }}</b> SLS berpolygon.
+                        </p>
+                    </div>
+                    <form method="GET" class="flex items-center gap-2">
+                        <input type="search" name="q_sls" value="{{ $cariSls }}" placeholder="Cari ID SLS / nama / kelurahan…"
+                            class="text-sm rounded-lg border-slate-200 bg-white focus:ring-teal-500 focus:border-teal-500 w-64">
+                        <button class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">Cari</button>
+                    </form>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+                            <tr>
+                                <th class="px-4 py-2 text-left">SLS</th>
+                                <th class="px-4 py-2 text-left">Kegiatan</th>
+                                <th class="px-4 py-2 text-left">Wilayah</th>
+                                <th class="px-4 py-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @forelse ($slsBerpolygon as $s)
+                                <tr class="hover:bg-slate-50/60">
+                                    <td class="px-4 py-3">
+                                        <p class="font-semibold text-slate-800">{{ $s->id_sls }}</p>
+                                        <p class="text-xs text-slate-400">{{ $s->nama_sls }}</p>
+                                    </td>
+                                    <td class="px-4 py-3 text-xs text-slate-600">{{ $s->kegiatan->nama_kegiatan ?? '-' }}</td>
+                                    <td class="px-4 py-3 text-xs text-slate-500">{{ $s->desa_kelurahan }}, {{ $s->kecamatan }}</td>
+                                    <td class="px-4 py-3 text-right whitespace-nowrap">
+                                        <form method="POST" action="{{ route('import.polygon.destroy', $s) }}" class="inline"
+                                              onsubmit="return confirm({{ Js::from('Hapus polygon SLS ' . $s->id_sls . '? SLS, penugasan, dan titiknya tetap ada, tapi tagging di SLS ini berhenti sampai polygon diimpor lagi.') }})">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="p-1.5 rounded-lg text-red-500 hover:bg-red-50" title="Hapus polygon SLS ini">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="px-4 py-6 text-center text-slate-400">Belum ada SLS yang punya polygon.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                @if ($slsBerpolygon->hasPages())
+                    <div class="px-4 py-3 border-t border-slate-100">{{ $slsBerpolygon->links() }}</div>
+                @endif
+            </div>
         </div>
     </div>
 </x-app-layout>

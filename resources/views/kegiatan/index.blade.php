@@ -128,10 +128,21 @@
                                             </button>
 
                                             {{-- Hapus --}}
+                                            @php
+                                                // [#10] Ada hasil kerja petugas -> wajib ketik nama kegiatan; selain itu cukup konfirmasi biasa.
+                                                $pesanHapus = $k->hasil_kerja_count > 0
+                                                    ? "Kegiatan ini memuat {$k->hasil_kerja_count} titik hasil kerja petugas (tagging / koreksi) yang akan IKUT TERHAPUS.\n\nKetik nama kegiatan persis untuk melanjutkan:\n{$k->nama_kegiatan}"
+                                                    : null;
+                                            @endphp
                                             <form method="POST" action="{{ route('kegiatan.destroy', $k) }}"
-                                                onsubmit="return confirm('Hapus kegiatan {{ e($k->nama_kegiatan) }}? Semua data bangunan yang terkait akan ikut terhapus.')">
+                                                @if ($pesanHapus)
+                                                    onsubmit="const n = prompt({{ Js::from($pesanHapus) }}); if (n === null) return false; this.konfirmasi_nama.value = n; return true;"
+                                                @else
+                                                    onsubmit="return confirm('Hapus kegiatan {{ e($k->nama_kegiatan) }}? Semua data bangunan yang terkait akan ikut terhapus.')"
+                                                @endif>
                                                 @csrf
                                                 @method('DELETE')
+                                                <input type="hidden" name="konfirmasi_nama" value="">
                                                 <button type="submit" title="Hapus" aria-label="Hapus"
                                                     class="p-1.5 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600 transition">
                                                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
