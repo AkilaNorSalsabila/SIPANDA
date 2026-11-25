@@ -176,6 +176,7 @@ class DataLokasiController extends Controller
             ->withCount([
                 'bangunan as jumlah_titik'  => $filterKegiatan,
                 'bangunan as jumlah_di_luar' => fn ($q) => $filterKegiatan($q)->where('di_luar_sls', true),
+                'bangunan as jumlah_perlu'   => fn ($q) => $filterKegiatan($q)->where('status_perbaikan', Bangunan::STATUS_PERLU),
             ]);
     }
 

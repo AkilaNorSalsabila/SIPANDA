@@ -117,10 +117,14 @@ class PetaController extends Controller
 
         $bangunan = $query->get()->sortBy(fn ($b) => (int) $b->nomor_bangunan)->values();
 
+        // Nama kepala keluarga / rumah tangga hanya untuk admin dan mitra yang ditugaskan di SLS ini.
+        $user = $request->user();
+        $bolehRinci = $user->isAdmin() || $user->penugasan()->where('sls_id', $sls->id)->exists();
+
         $total = $bangunan->count();
 
-        $daftar = $bangunan->map(function ($b) {
-            $rt = $b->rumahTangga;
+        $daftar = $bangunan->map(function ($b) use ($bolehRinci) {
+            $rt = $bolehRinci ? $b->rumahTangga : collect();
 
             return [
                 'id'             => $b->id,
@@ -150,6 +154,7 @@ class PetaController extends Controller
                 'keluarga_kk'    => (int) $bangunan->sum('jumlah_kk'),
             ],
             'daftar' => $daftar,
+            'rincian_dibatasi' => ! $bolehRinci,
         ]);
     }
 
@@ -158,6 +163,11 @@ class PetaController extends Controller
         $bangunan->load(['sls', 'kegiatan', 'rumahTangga', 'usaha', 'pembuat', 'dikoreksiOleh']);
 
         $statusKondisi = $this->statusKondisi($bangunan);
+
+        // Data pribadi rumah tangga hanya untuk admin dan mitra yang ditugaskan di SLS titik ini.
+        $user = request()->user();
+        $bolehRinci = $user->isAdmin()
+            || ($bangunan->sls_id && $user->bolehTagging((int) $bangunan->kegiatan_id, (int) $bangunan->sls_id));
 
         $slsAktual = null;
         $jarakMeter = null;
@@ -200,6 +210,7 @@ class PetaController extends Controller
             'dikoreksi_oleh'  => $bangunan->dikoreksiOleh?->name,
             'dikoreksi_at'    => $bangunan->dikoreksi_at?->toIso8601String(),
             'diverifikasi_at' => $bangunan->diverifikasi_at?->toIso8601String(),
+            'alasan_tolak'    => $bangunan->status_perbaikan === Bangunan::STATUS_PERLU ? $bangunan->alasan_tolak : null,   // catatan admin saat mengembalikan koreksi
             'latitude_asal'   => $bangunan->latitude_asal,                          // koordinat awal dari file import
             'longitude_asal'  => $bangunan->longitude_asal,
             // Tombol Verifikasi / Kembalikan di popup (admin, untuk titik "sudah diperbaiki")
@@ -239,7 +250,8 @@ class PetaController extends Controller
                 : [],
 
             // 5 standar informasi 
-            'rumah_tangga' => $bangunan->rumahTangga->map(fn ($rt) => [
+            'rincian_dibatasi' => ! $bolehRinci,
+            'rumah_tangga' => ! $bolehRinci ? [] : $bangunan->rumahTangga->map(fn ($rt) => [
                 'id'                     => $rt->id,
                 'nomor_kk'               => $rt->nomorKkTersamar(),
                 'nomor_urut_rumah_tangga'=> $rt->nomor_urut_rumah_tangga,

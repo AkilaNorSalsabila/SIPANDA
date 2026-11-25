@@ -3,11 +3,11 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DataLokasiController;
 use App\Http\Controllers\ImportController;
-use App\Http\Controllers\PenugasanSayaController;
 use App\Http\Controllers\PetaController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RiwayatController;
 use App\Http\Controllers\TaggingController;
+use App\Http\Controllers\TaggingSayaController;
 use App\Http\Controllers\KegiatanController;
 use App\Http\Controllers\KecamatanController;
 use App\Http\Controllers\KelurahanController;
@@ -32,8 +32,11 @@ Route::middleware(['auth', 'approved'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // ================= PENUGASAN SAYA (viewer) =================
-    Route::get('/penugasan-saya', [PenugasanSayaController::class, 'index'])->name('penugasan.saya');
+    // ================= MENU TAGGING (viewer): kegiatan + SLS + progres + tombol mulai =================
+    Route::get('/tagging', [TaggingSayaController::class, 'index'])->name('tagging.index');
+
+    // Alamat lama "Penugasan Saya" dialihkan ke menu Tagging (nama route dipertahankan agar link lama tidak error).
+    Route::redirect('/penugasan-saya', '/tagging')->name('penugasan.saya');
 
     // ================= PETA =================
     Route::get('/peta', [PetaController::class, 'index'])->name('peta.index');

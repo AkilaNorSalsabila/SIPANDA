@@ -12,6 +12,18 @@
                 </div>
             @endif
 
+            @if (session('error'))
+                <div class="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
+                    {{ session('error') }}
+                </div>
+            @endif
+
+            @if ($errors->has('file'))
+                <div class="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
+                    {{ $errors->first('file') }}
+                </div>
+            @endif
+
             @if (empty($kegiatanList) || $kegiatanList->isEmpty())
                 <div class="p-4 bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-lg">
                     Belum ada data <b>Kegiatan</b>. Buat minimal satu kegiatan dulu
@@ -96,15 +108,7 @@
                                        file:border-0 file:bg-emerald-50 file:text-emerald-700 file:text-xs file:font-semibold">
                         </div>
 
-                        <label class="flex items-start gap-2 text-xs text-slate-600">
-                            <input type="checkbox" name="timpa_koreksi" value="1"
-                                class="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
-                            <span>
-                                <b>Timpa juga titik yang sudah dikoreksi.</b>
-                                Biarkan kosong agar titik yang sudah diperbaiki petugas/admin dilewati
-                                (hasil koreksi dipertahankan dan dilaporkan sebagai &quot;dilewati&quot;).
-                            </span>
-                        </label>
+                       
 
                         <button type="submit"
                             class="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition">
@@ -123,11 +127,12 @@
                 <p class="text-xs text-slate-500 mb-4">
                     Untuk kegiatan baru yang memakai batas SLS yang sama dengan kegiatan sebelumnya. Seluruh SLS beserta
                     polygonnya disalin menjadi milik kegiatan tujuan, sehingga perubahan batas di satu kegiatan tidak
-                    memengaruhi kegiatan lain. SLS yang sudah ada di kegiatan tujuan tidak ditimpa.
+                    memengaruhi kegiatan lain. SLS yang sudah ada di kegiatan tujuan tidak ditimpa, kecuali polygon
+                    yang masih kosong (atau semua polygon kalau &quot;timpa polygon&quot; dicentang). Penugasan dan titik tidak berubah.
                 </p>
 
                 <form method="POST" action="{{ route('import.salin-sls') }}" class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end"
-                      onsubmit="return confirm('Salin SLS dari kegiatan asal ke kegiatan tujuan?')">
+                      onsubmit="return confirm(this.timpa_polygon.checked ? 'Salin SLS dan GANTI polygon SLS yang sudah ada di kegiatan tujuan dengan polygon kegiatan asal?' : 'Salin SLS dari kegiatan asal ke kegiatan tujuan?')">
                     @csrf
 
                     <div>
@@ -151,6 +156,12 @@
                             @endforeach
                         </select>
                     </div>
+
+                    <label class="sm:col-span-3 flex items-start gap-2 text-xs text-slate-600">
+                        <input type="checkbox" name="timpa_polygon" value="1"
+                            class="mt-0.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                        <span><b>Timpa polygon</b> SLS yang sudah ada di kegiatan tujuan (polygon lama disimpan sebagai versi sebelumnya).</span>
+                    </label>
 
                     <button type="submit"
                         class="py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold transition">
@@ -178,6 +189,7 @@
                                 <th class="px-4 py-2 text-center">Total</th>
                                 <th class="px-4 py-2 text-center">Valid</th>
                                 <th class="px-4 py-2 text-center">Bermasalah</th>
+                                <th class="px-4 py-2 text-center">Dilewati</th>
                                 <th class="px-4 py-2 text-left">Diupload oleh</th>
                                 <th class="px-4 py-2"></th>
                                 <th class="px-4 py-2"></th>
@@ -202,14 +214,24 @@
                                     <td class="px-4 py-3 text-center {{ $batch->data_error > 0 ? 'text-red-600 font-semibold' : 'text-slate-400' }}">
                                         {{ $batch->data_error }}
                                     </td>
-                                    <td class="px-4 py-3 text-slate-600">{{ $batch->uploader->name ?? '-' }}</td>
+                                    <td class="px-4 py-3 text-center {{ $batch->data_dilewati > 0 ? 'text-amber-600 font-semibold' : 'text-slate-400' }}">
+                                        {{ $batch->data_dilewati }}
+                                    </td>
+                                    <td class="px-4 py-3 text-slate-600">
+                                        {{ $batch->uploader->name ?? '-' }}
+                                        @if ($batch->status === 'failed')
+                                            <span class="ml-1 px-1.5 py-0.5 rounded bg-red-50 text-red-600 text-[10px] font-semibold uppercase">gagal</span>
+                                        @elseif ($batch->status === 'processing')
+                                            <span class="ml-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 text-[10px] font-semibold uppercase">diproses</span>
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-3">
-                                        @if ($batch->data_error > 0)
+                                        @if (! empty($batch->error_log))
                                             <details class="text-xs">
                                                 <summary class="cursor-pointer text-teal-600 font-semibold">Lihat detail</summary>
                                                 <ul class="mt-2 space-y-1 max-h-48 overflow-y-auto pr-2">
                                                     @foreach ($batch->error_log as $err)
-                                                        <li class="text-slate-500">
+                                                        <li class="{{ ($err['tingkat'] ?? 'galat') === 'info' ? 'text-sky-600' : 'text-slate-500' }}">
                                                             @if (is_numeric($err['baris']))Baris {{ $err['baris'] }}: @endif{{ $err['pesan'] }}
                                                         </li>
                                                     @endforeach
@@ -223,8 +245,8 @@
                                             $pesan = $n === 0
                                                 ? 'Hapus catatan import ini? Import ini tidak terlacak, jadi data hasil import tidak ikut dihapus.'
                                                 : ($batch->jenis_data === 'batas_sls'
-                                                    ? "Hapus import ini? Polygon {$n} SLS akan dikosongkan (SLS dan penugasannya tetap ada)."
-                                                    : "Hapus import ini? {$n} titik lokasi beserta usaha dan KK-nya akan dihapus. Titik hasil tagging petugas tidak ikut dihapus.");
+                                                    ? "Hapus import ini? Polygon {$n} SLS akan dikembalikan ke versi sebelumnya (kalau ada, mis. sebelum impor ulang), selain itu dikosongkan. SLS dan penugasannya tetap ada."
+                                                    : "Hapus import ini? {$n} titik yang DIBUAT oleh import ini beserta usaha dan KK-nya akan dihapus. Titik yang sudah ada sebelumnya dan hanya diperbarui, titik hasil koreksi, dan titik hasil tagging petugas tidak ikut dihapus.");
                                         @endphp
                                         <form method="POST" action="{{ route('import.destroy', $batch) }}" class="inline"
                                               onsubmit="return confirm({{ Js::from($pesan) }})">
@@ -238,7 +260,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="10" class="px-4 py-6 text-center text-slate-400">
+                                    <td colspan="11" class="px-4 py-6 text-center text-slate-400">
                                         Belum ada riwayat import.
                                     </td>
                                 </tr>

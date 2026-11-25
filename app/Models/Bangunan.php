@@ -46,6 +46,9 @@ class Bangunan extends Model
         'diverifikasi_at',
         'latitude_asal',
         'longitude_asal',
+        'import_batch_id',
+        'import_batch_awal_id',
+        'alasan_tolak',
     ];
 
     /** Status perbaikan titik (kolom status_perbaikan). */
@@ -252,6 +255,59 @@ class Bangunan extends Model
         }
 
         return (bool) $row->inside;
+    }
+
+    /**
+     * Koordinat "acuan dari file": posisi titik menurut file import terakhir yang diterapkan.
+     * Titik yang pernah digeser di aplikasi menyimpan posisi file-nya di latitude_asal/longitude_asal;
+     * titik yang belum pernah digeser, posisi sekarangnya masih posisi dari file.
+     * Dipakai bersama posisi sekarang oleh posisiFileBerubah() untuk menilai apakah file baru (hasil perbaikan QGIS) benar-benar mengubah posisi titik.
+     *
+     * @return array{0: ?float, 1: ?float} [lat, lng]
+     */
+    public function koordinatAcuan(): array
+    {
+        $lat = $this->latitude_asal ?? $this->latitude;
+        $lng = $this->longitude_asal ?? $this->longitude;
+
+        return [$lat !== null ? (float) $lat : null, $lng !== null ? (float) $lng : null];
+    }
+
+    /**
+     * true kalau koordinat dari file berbeda (> ~5 cm) dari posisi acuan file DAN dari posisi titik sekarang.
+     * Sama dengan posisi sekarang = file hasil export dari aplikasi yang diimpor kembali tanpa perubahan;
+     * sama dengan posisi acuan = file lama yang diimpor lagi. Keduanya bukan perbaikan baru dari QGIS.
+     */
+    public function posisiFileBerubah(float $lat, float $lng): bool
+    {
+        $sama = fn (mixed $a, mixed $b, float $x, float $y) => $a !== null && $b !== null
+            && abs((float) $a - $x) <= 5e-7 && abs((float) $b - $y) <= 5e-7;
+
+        [$acuanLat, $acuanLng] = $this->koordinatAcuan();
+
+        if ($sama($this->latitude, $this->longitude, $lat, $lng)) {
+            return false;
+        }
+
+        return ! $sama($acuanLat, $acuanLng, $lat, $lng);
+    }
+
+    /**
+     * Sambungkan titik yang sls_id-nya kosong ke SLS (kegiatan yang sama) yang kodenya cocok dengan
+     * id_sls_asal. Dipanggil setelah batas SLS diimpor / disalin, supaya titik yang diimpor sebelum
+     * SLS-nya ada tidak tertinggal tanpa SLS. Mengembalikan jumlah titik yang tersambung.
+     */
+    public static function sambungkanTanpaSls(?int $kegiatanId = null): int
+    {
+        return DB::affectingStatement('
+            UPDATE bangunan b
+            SET sls_id = s.id
+            FROM sls s
+            WHERE b.sls_id IS NULL
+              AND b.id_sls_asal IS NOT NULL
+              AND s.kegiatan_id = b.kegiatan_id
+              AND s.id_sls = b.id_sls_asal
+        ' . ($kegiatanId ? ' AND b.kegiatan_id = ?' : ''), $kegiatanId ? [$kegiatanId] : []);
     }
 
     /**

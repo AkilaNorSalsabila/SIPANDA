@@ -34,6 +34,17 @@
         'flag_repair'      => 'Perlu perbaikan (flag_repair)',
         'kk'               => 'Jumlah KK (kk)',
         'usaha'            => 'Jumlah usaha (usaha)',
+        'dilewati'             => 'Titik dilewati (koreksi dipertahankan)',
+        'ditimpa'              => 'Titik koreksi ditimpa (opsi timpa)',
+        'diperbarui_dari_file' => 'Titik diperbarui karena posisi di file berubah',
+        'tidak_ada_di_file'    => 'Titik di aplikasi yang tidak ada di file',
+        'dihapus_tidak_ada'    => 'Titik tidak ada di file yang dihapus',
+        'polygon_diperbarui'   => 'Polygon SLS diperbarui',
+        'titik_disambung'      => 'Titik tanpa SLS yang tersambung',
+        'timpa_polygon'        => 'Timpa polygon',
+        'dari'                 => 'Dari kegiatan',
+        'ke'                   => 'Ke kegiatan',
+        'alasan_tolak'         => 'Alasan dikembalikan',
     ];
 
     $tampil = function ($v) {

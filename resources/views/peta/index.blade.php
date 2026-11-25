@@ -880,7 +880,7 @@
                 const kelas = { perlu_perbaikan: 'pc-badge-perlu', sudah_diperbaiki: 'pc-badge-sudah', terverifikasi: 'pc-badge-verif' }[d.status_perbaikan] ?? 'pc-badge-muted';
                 badges += `<span class="pc-badge ${kelas}">${esc(labelPerbaikan[d.status_perbaikan] ?? d.status_perbaikan)}</span>`;
             } else if (d.diedit_manual_at) {
-                badges += `<span class="pc-badge pc-badge-muted" title="Dikoreksi admin lewat peta; tidak ditimpa import ulang">DIEDIT MANUAL</span>`;
+                badges += `<span class="pc-badge pc-badge-muted" title="Dikoreksi admin lewat peta; tidak ditimpa import ulang selama posisinya di file tidak berubah">DIEDIT MANUAL</span>`;
             }
 
             if (d.status_kondisi === 'normal') {
@@ -967,6 +967,11 @@
                 koreksi = `<div class="pc-koreksi-box"><div class="pc-sub-title">Koreksi</div>${oleh}${asal}<div>Status: <b>${status}</b></div></div>`;
             }
 
+            // Catatan admin saat mengembalikan koreksi: petugas perlu tahu apa yang harus diperbaiki.
+            const alasanTolak = d.alasan_tolak
+                ? `<div class="pc-koreksi-box" style="border-color:#fca5a5;background:#fef2f2"><div class="pc-sub-title" style="color:#b91c1c">Dikembalikan admin</div><div>${esc(d.alasan_tolak)}</div></div>`
+                : '';
+
             const gmaps = `https://www.google.com/maps?q=${encodeURIComponent(d.latitude + ',' + d.longitude)}`;
             const gnav = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(d.latitude + ',' + d.longitude)}`;
 
@@ -982,6 +987,7 @@
                     ${blokUsaha}
                     ${kotak}
                     ${koreksi}
+                    ${alasanTolak}
                     ${d.sumber === 'tagging' ? `
                         <div class="pc-row" style="margin-top:6px">Ditag lewat aplikasi oleh: <b>${esc(d.ditag_oleh ?? '-')}</b></div>
                         <div class="pc-row">Metode: <b>${d.sumber_tag === 'gps' ? 'GPS di lokasi' : 'Klik peta (admin)'}</b>${d.akurasi_gps != null ? ` &nbsp;|&nbsp; Akurasi: <b>±${esc(Number(d.akurasi_gps).toFixed(1))} m</b>` : ''}</div>
@@ -1801,9 +1807,15 @@
         }
 
         async function ubahStatusKoreksi(id, aksi) {
-            if (aksi === 'tolak' && ! confirm('Kembalikan titik ini ke status "perlu perbaikan"?')) return;
+            let body;
+            if (aksi === 'tolak') {
+                // prompt() mengembalikan null kalau dibatalkan; string kosong = tanpa alasan.
+                const alasan = prompt('Kembalikan titik ini ke status "perlu perbaikan"?\n\nTulis alasan / apa yang harus diperbaiki (opsional, terlihat oleh petugas):', '');
+                if (alasan === null) return;
+                body = { alasan: alasan.trim() };
+            }
             try {
-                const hasil = await kirimJson(`${urlTagging}/${id}/${aksi}`, 'POST');
+                const hasil = await kirimJson(`${urlTagging}/${id}/${aksi}`, 'POST', body);
                 delete cacheDetail[id];
                 map.closePopup();
                 terapkanFitur(hasil.fitur);

@@ -10,6 +10,11 @@
     // Menu Tagging: tersedia untuk semua peran. Viewer hanya bisa di SLS penugasannya.
     $halamanTagging = request()->routeIs('peta.index') && request()->query('mode') === 'tagging';
     $jumlahTugas    = $isAdmin ? null : \App\Models\PenugasanSls::where('user_id', $authUser->id)->count();
+
+    // Viewer hanya punya SATU menu: Tagging (daftar kegiatan + SLS + progres, lalu peta tagging).
+    // Menu aktif untuk viewer: halaman daftar (tagging.index) maupun peta tagging.
+    $urlTagging   = $isAdmin ? route('peta.index', ['mode' => 'tagging']) : route('tagging.index');
+    $aktifTagging = $isAdmin ? $halamanTagging : (request()->routeIs('tagging.index') || $halamanTagging);
 @endphp
 
 <style>
@@ -105,9 +110,9 @@
             </a>
 
             {{-- Tagging: admin & viewer (viewer hanya di SLS penugasan) --}}
-            <a href="{{ route('peta.index', ['mode' => 'tagging']) }}"
+            <a href="{{ $urlTagging }}"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
-                       {{ $halamanTagging ? 'bg-white text-teal-700 shadow-sm' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                       {{ $aktifTagging ? 'bg-white text-teal-700 shadow-sm' : 'text-teal-50 hover:bg-teal-600/60' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v6m-3-3h6" />
@@ -120,16 +125,7 @@
                 @endif
             </a>
 
-            @unless ($isAdmin)
-                <a href="{{ route('penugasan.saya') }}"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
-                           {{ request()->routeIs('penugasan.saya') ? 'bg-white text-teal-700 shadow-sm' : 'text-teal-50 hover:bg-teal-600/60' }}">
-                    <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 5h6M9 12h6M9 16h4" />
-                    </svg>
-                    Penugasan Saya
-                </a>
-            @endunless
+            {{-- "Penugasan Saya" sudah digabung ke menu Tagging --}}
 
             {{-- ===== Administrasi (khusus admin) ===== --}}
             @if ($isAdmin)
@@ -305,22 +301,16 @@
                     Peta
                 </a>
 
-                <a href="{{ route('peta.index', ['mode' => 'tagging']) }}"
+                <a href="{{ $urlTagging }}"
                     class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                           {{ $halamanTagging ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
+                           {{ $aktifTagging ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
                     Tagging
                     @if (! $isAdmin)
                         <span class="ms-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full {{ $jumlahTugas ? 'bg-amber-400 text-teal-900' : 'bg-teal-800 text-teal-200' }}">{{ $jumlahTugas }} SLS</span>
                     @endif
                 </a>
 
-                @unless ($isAdmin)
-                    <a href="{{ route('penugasan.saya') }}"
-                        class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                               {{ request()->routeIs('penugasan.saya') ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600/60' }}">
-                        Penugasan Saya
-                    </a>
-                @endunless
+                {{-- "Penugasan Saya" sudah digabung ke menu Tagging --}}
 
                 @if ($canImport)
                     <a href="{{ route('import.index') }}"

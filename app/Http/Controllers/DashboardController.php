@@ -9,6 +9,7 @@ use App\Models\RumahTangga;
 use App\Models\Usaha;
 use App\Models\User;
 use App\Support\ProgresPetugas;
+use App\Support\RingkasanPetugas;
 use Illuminate\Support\Facades\Auth;
 use Throwable;
 
@@ -18,9 +19,14 @@ class DashboardController extends Controller
     {
         $isAdmin = Auth::user()->isAdmin();
 
-        // Petugas (viewer) punya dashboard sendiri: progres penugasan miliknya, bukan data seluruh sistem.
+        // Petugas (viewer) punya dashboard sendiri: ringkasan kinerja miliknya, bukan data seluruh sistem.
+        // ProgresPetugas = angka progres SLS (juga dipakai menu Tagging);
+        // RingkasanPetugas = insight tambahan (tren, kualitas GPS, hasil verifikasi, hal yang perlu perhatian).
         if (! $isAdmin) {
-            return view('dashboard-petugas', ProgresPetugas::untuk(Auth::user()));
+            $user = Auth::user();
+            $progres = ProgresPetugas::untuk($user);
+
+            return view('dashboard-petugas', $progres + RingkasanPetugas::untuk($user, $progres));
         }
 
         // ================= STATUS TITIK (semua kegiatan) =================

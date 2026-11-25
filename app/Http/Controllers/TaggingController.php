@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -103,7 +104,7 @@ class TaggingController extends Controller
         // Mitra wajib memakai GPS di lokasi bangunan, dengan akurasi yang cukup baik.
         $pakaiGps = $data['sumber_tag'] === 'gps';
         $akurasi  = $pakaiGps && isset($data['akurasi_gps']) ? round((float) $data['akurasi_gps'], 2) : null;
-        $batas    = (float) config('tagging.akurasi_maks_m', 30);
+        $batas    = (float) config('tagging.akurasi_maks_m', 100);
 
         if (! $request->user()->isAdmin()) {
             if (! $pakaiGps) {
@@ -137,6 +138,15 @@ class TaggingController extends Controller
         }
 
         $bangunan = DB::transaction(function () use ($request, $data, $sls, $kegiatanId, $lat, $lng, $dalam, $pakaiGps, $akurasi) {
+            // Dua petugas di SLS yang sama bisa menyimpan nomor yang sama hampir bersamaan: kunci per SLS,
+            // lalu periksa ulang nomor di dalam transaksi (pemeriksaan di atas hanya penyaring awal).
+            DB::select('SELECT pg_advisory_xact_lock(?)', [$sls->id]);
+            if ($this->nomorSudahDipakai($kegiatanId, $sls->id, $data['nomor_bangunan'])) {
+                throw ValidationException::withMessages([
+                    'nomor_bangunan' => "Nomor bangunan {$data['nomor_bangunan']} sudah dipakai di SLS ini.",
+                ]);
+            }
+
             $bangunan = Bangunan::create([
                 'kegiatan_id'     => $kegiatanId,
                 'sls_id'          => $sls->id,
@@ -181,8 +191,11 @@ class TaggingController extends Controller
 
         $data = $request->validate($this->aturanAtribut(), [], $this->namaAtribut());
 
-        if ($this->nomorSudahDipakai((int) $bangunan->kegiatan_id, (int) $bangunan->sls_id, $data['nomor_bangunan'], $bangunan->id)) {
-            return $this->gagal("Nomor bangunan {$data['nomor_bangunan']} sudah dipakai di SLS ini.", 'nomor_bangunan');
+        // Hanya diperiksa kalau nomornya DIUBAH: data import bisa memuat no_bang kembar di satu SLS, dan itu
+        // tidak boleh menghalangi petugas menyimpan perbaikan atribut lain pada titik tersebut.
+        $nomorBerubah = (string) $data['nomor_bangunan'] !== (string) $bangunan->nomor_bangunan;
+        if ($nomorBerubah && $this->nomorSudahDipakai((int) $bangunan->kegiatan_id, (int) $bangunan->sls_id, $data['nomor_bangunan'], $bangunan->id)) {
+            return $this->gagal("Nomor bangunan {$data['nomor_bangunan']} sudah dipakai titik lain di SLS ini. Gunakan nomor yang berbeda.", 'nomor_bangunan');
         }
 
         $lama = $this->ringkasan($bangunan);
@@ -193,7 +206,16 @@ class TaggingController extends Controller
             $atribut = $this->atributBangunan($request, $data);
             if ($titikImport) {
                 // Koreksi titik import: tandai sudah diperbaiki; import ulang akan melewati titik ini.
+                $statusLama = $bangunan->status_perbaikan ?? Bangunan::STATUS_NORMAL;
                 $atribut = array_merge($atribut, $this->atributKoreksi($pengubah));
+
+                // Titik yang tadinya tidak bermasalah: isian tetap dicatat & dilindungi dari import ulang
+                // (diedit_manual_at / dikoreksi_*), tetapi tidak masuk antrean verifikasi admin.
+                if ($statusLama === Bangunan::STATUS_NORMAL) {
+                    $atribut['status_perbaikan']  = Bangunan::STATUS_NORMAL;
+                    $atribut['diverifikasi_oleh'] = null;
+                    $atribut['diverifikasi_at']   = null;
+                }
 
                 // [#1] Mengubah atribut tidak menyelesaikan masalah lokasi / flag_repair. Selama titik masih
                 // di luar batas SLS atau flag_repair masih dicentang, statusnya tetap "perlu perbaikan".
@@ -261,7 +283,7 @@ class TaggingController extends Controller
 
         $pakaiGps = $data['sumber_tag'] === 'gps';
         $akurasi  = $pakaiGps && isset($data['akurasi_gps']) ? round((float) $data['akurasi_gps'], 2) : null;
-        $batas    = (float) config('tagging.akurasi_maks_m', 30);
+        $batas    = (float) config('tagging.akurasi_maks_m', 100);
 
         if (! $user->isAdmin()) {
             if (! $pakaiGps) {
@@ -307,6 +329,12 @@ class TaggingController extends Controller
                     $isi['longitude_asal'] = $lngLama;
                 }
                 $isi = array_merge($isi, $this->atributKoreksi($user));
+
+                // Admin yang memperbaiki lokasi = langsung terverifikasi; tanda flag_repair dipadamkan supaya
+                // tidak terekspor ke QGIS sebagai flag_repair=1 (sama seperti saat verifikasi()).
+                if ($user->isAdmin()) {
+                    $isi['flag_repair'] = false;
+                }
             }
 
             $bangunan->fill($isi);
@@ -353,6 +381,7 @@ class TaggingController extends Controller
             // [#7] Koreksi sudah dinyatakan benar: tanda "perlu perbaikan" (termasuk yang dinyalakan
             // saat ditolak) dipadamkan supaya tidak terekspor ke QGIS sebagai flag_repair=1.
             'flag_repair'       => false,
+            'alasan_tolak'      => null,
         ]);
 
         Riwayat::catat(
@@ -373,6 +402,9 @@ class TaggingController extends Controller
     {
         abort_unless($request->user()->isAdmin(), 403, 'Hanya admin yang dapat menolak koreksi.');
 
+        $data = $request->validate(['alasan' => ['nullable', 'string', 'max:500']]);
+        $alasan = filled($data['alasan'] ?? null) ? trim($data['alasan']) : null;
+
         if ($bangunan->status_perbaikan !== Bangunan::STATUS_SUDAH) {
             return $this->gagal('Hanya titik berstatus "sudah diperbaiki" yang dapat dikembalikan.', 'status_perbaikan');
         }
@@ -382,16 +414,18 @@ class TaggingController extends Controller
             'flag_repair'       => true,
             'diverifikasi_oleh' => null,
             'diverifikasi_at'   => null,
+            'alasan_tolak'      => $alasan,   // dibaca petugas di popup titik supaya tahu apa yang harus diperbaiki
         ]);
 
         Riwayat::catat(
             modul: 'tagging',
             aksi: 'tolak',
-            keterangan: "Mengembalikan koreksi titik bangunan no. {$bangunan->nomor_bangunan} (SLS {$bangunan->id_sls_asal}) untuk diperbaiki lagi",
+            keterangan: "Mengembalikan koreksi titik bangunan no. {$bangunan->nomor_bangunan} (SLS {$bangunan->id_sls_asal}) untuk diperbaiki lagi"
+                . ($alasan ? " — alasan: {$alasan}" : ''),
             objekId: $bangunan->id,
             objekLabel: "Bangunan {$bangunan->nomor_bangunan} / SLS {$bangunan->id_sls_asal}",
             lama: ['status_perbaikan' => $this->labelStatus(Bangunan::STATUS_SUDAH)],
-            baru: ['status_perbaikan' => $this->labelStatus(Bangunan::STATUS_PERLU)],
+            baru: ['status_perbaikan' => $this->labelStatus(Bangunan::STATUS_PERLU), 'alasan_tolak' => $alasan],
         );
 
         return response()->json(['pesan' => 'Dikembalikan: titik perlu diperbaiki lagi.', 'fitur' => $this->fiturPeta($bangunan->fresh())]);
@@ -521,7 +555,8 @@ class TaggingController extends Controller
             'dikoreksi_at'      => now(),
             'diverifikasi_oleh' => $admin ? $user->id : null,
             'diverifikasi_at'   => $admin ? now() : null,
-            'diedit_manual_at'  => now(),   // penanda lama; import ulang melewati titik ini
+            'diedit_manual_at'  => now(),   // penanda lama; import ulang melewati titik ini kalau posisinya di file tidak berubah
+            'alasan_tolak'      => null,    // koreksi baru: catatan penolakan sebelumnya sudah ditindaklanjuti
         ];
     }
 
@@ -549,8 +584,9 @@ class TaggingController extends Controller
     private function aturanAtribut(): array
     {
         return [
-            // no_bang: nomor urut bangunan di SLS (angka, seperti data QGIS)
-            'nomor_bangunan'  => ['required', 'regex:/^\d{1,6}$/'],
+            // no_bang: nomor urut bangunan di SLS. Umumnya angka; huruf/strip diizinkan karena data QGIS bisa memuat
+            // nomor seperti "12A" dan titik import tidak boleh gagal disimpan hanya karena format nomornya.
+            'nomor_bangunan'  => ['required', 'regex:/^[0-9A-Za-z\-]{1,10}$/'],
             'kode_bang_value' => ['nullable', 'regex:/^[0-9A-Za-z]{1,10}$/'],
             'flag_btt'        => ['nullable', 'boolean'],
             'flag_bku'        => ['nullable', 'boolean'],
