@@ -8,6 +8,8 @@ use App\Models\Kegiatan;
 use App\Models\RumahTangga;
 use App\Models\Usaha;
 use App\Models\User;
+use App\Support\ProgresPetugas;
+use App\Support\RingkasanPetugas;
 use Illuminate\Support\Facades\Auth;
 use Throwable;
 
@@ -16,6 +18,16 @@ class DashboardController extends Controller
     public function index()
     {
         $isAdmin = Auth::user()->isAdmin();
+
+        // Petugas (viewer) punya dashboard sendiri: ringkasan kinerja miliknya, bukan data seluruh sistem.
+        // ProgresPetugas = angka progres SLS (juga dipakai menu Tagging);
+        // RingkasanPetugas = insight tambahan (tren, kualitas GPS, hasil verifikasi, hal yang perlu perhatian).
+        if (! $isAdmin) {
+            $user = Auth::user();
+            $progres = ProgresPetugas::untuk($user);
+
+            return view('dashboard-petugas', $progres + RingkasanPetugas::untuk($user, $progres));
+        }
 
         // ================= STATUS TITIK (semua kegiatan) =================
         // "status_kondisi" bukan kolom; diturunkan dari sls_id + di_luar_sls
@@ -51,7 +63,9 @@ class DashboardController extends Controller
 
         // ================= RINGKASAN =================
         $totalKegiatan = Kegiatan::count();
-        $totalSls      = Bangunan::whereNotNull('sls_id')->distinct()->count('sls_id');
+        // SLS adalah snapshot per kegiatan, jadi hitung per id_sls supaya SLS yang sama di
+        // beberapa kegiatan tidak terhitung dobel.
+        $totalSls      = Bangunan::join('sls', 'sls.id', '=', 'bangunan.sls_id')->distinct()->count('sls.id_sls');
         $totalUsaha    = Usaha::count();
         $totalKk       = RumahTangga::count();
 

@@ -20,6 +20,7 @@ class ImportBatch extends Model
         'total_data',
         'data_valid',
         'data_error',
+        'data_dilewati',
         'status',
         'error_log',
     ];

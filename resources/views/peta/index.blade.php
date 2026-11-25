@@ -35,6 +35,11 @@
         .pc-badge-ok     { background: #eff6ff; color: #2563eb; }
         .pc-badge-warn   { background: #fee2e2; color: #dc2626; }
         .pc-badge-muted  { background: #f1f5f9; color: #475569; }
+        .pc-badge-perlu  { background: #fee2e2; color: #b91c1c; }
+        .pc-badge-sudah  { background: #fef3c7; color: #b45309; }
+        .pc-badge-verif  { background: #dcfce7; color: #15803d; }
+        .pc-koreksi-box  { margin: 8px 0; padding: 8px 10px; border-radius: 8px; background: #f8fafc; border: 1px solid #e2e8f0; font-size: 12px; color: #334155; line-height: 1.5; font-family: sans-serif; }
+        .pc-koreksi-box b { color: #0f172a; }
         .pc-title { font-size: 14px; font-weight: 800; color: #0f172a; margin-bottom: 6px; font-family: sans-serif; }
         .pc-row { font-size: 12px; color: #334155; margin-bottom: 3px; font-family: sans-serif; }
         .pc-row b { color: #0f172a; }
@@ -86,6 +91,38 @@
         .qc-switch input:disabled { cursor: not-allowed; }
         .qc-row-disabled { opacity: .45; }
 
+        /* ===== Tagging ===== */
+        .mode-tagging, .mode-tagging .leaflet-interactive { cursor: crosshair !important; }
+        .btn-tugas {
+            display: block; width: 100%; text-align: left; padding: 7px 10px; margin-top: 4px;
+            border-radius: 8px; border: 1px solid #99f6e4; background: #fff; font-size: 12px; color: #134e4a;
+        }
+        .btn-tugas:hover { background: #f0fdfa; }
+        .btn-tugas.aktif { background: #0d9488; border-color: #0d9488; color: #fff; }
+        .btn-tugas.aktif small { color: #ccfbf1; }
+        .btn-tugas small { display: block; font-size: 10px; color: #64748b; }
+        .btn-tugas:disabled { opacity: .5; cursor: not-allowed; }
+        #toastTag {
+            position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 3000;
+            max-width: 90vw; padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600;
+            color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,.25);
+        }
+
+        /* Panel pengambilan lokasi GPS (melayang di bawah layar) */
+        #gpsBar {
+            position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 1900;
+            width: min(92vw, 360px); background: #fff; border: 1px solid #99f6e4; border-radius: 14px;
+            padding: 12px 14px; box-shadow: 0 8px 28px rgba(0,0,0,.28); font-size: 13px;
+        }
+        #gpsBar .gps-baris { display: flex; justify-content: space-between; align-items: baseline; }
+        #gpsBar .gps-angka { font-size: 20px; font-weight: 700; }
+        #gpsBar .gps-status { margin-top: 4px; font-size: 12px; color: #475569; line-height: 1.35; }
+        #gpsBar .gps-aksi { margin-top: 10px; display: flex; gap: 8px; justify-content: flex-end; }
+        #gpsBar .gps-btn { padding: 8px 14px; border-radius: 9px; font-size: 12px; font-weight: 600; }
+        #gpsBar .gps-btn-abu { background: #f1f5f9; color: #334155; }
+        #gpsBar .gps-btn-utama { background: #0d9488; color: #fff; }
+        #gpsBar .gps-btn-utama:disabled { opacity: .45; cursor: not-allowed; }
+
         /* Cincin merah pada cluster yang berisi titik di luar batas SLS */
         .marker-cluster-qc > div { box-shadow: 0 0 0 4px rgba(239,68,68,.75); }
     </style>
@@ -98,6 +135,49 @@
                     {{-- ================= SIDEBAR FILTER ================= --}}
                     <div class="border-b lg:border-b-0 lg:border-r border-slate-200 p-5 space-y-6 lg:overflow-y-auto">
 
+                        {{-- ================= TAGGING ================= --}}
+                        @php $halamanTagging = request()->query('mode') === 'tagging'; @endphp
+                        <div id="panelTagging" class="rounded-xl border border-teal-200 bg-teal-50/60 p-3">
+                            <p class="text-xs font-bold text-teal-800 mb-1">{{ $halamanTagging ? 'Tagging Titik' : 'Unduh Data' }}</p>
+
+                            {{-- Bagian tagging hanya tampil di menu Tagging (?mode=tagging). Tetap ada di HTML (disembunyikan) supaya JS tidak error. --}}
+                            <div id="blokTagging" class="{{ $halamanTagging ? '' : 'hidden' }}">
+                            <div id="daftarPenugasan" class="text-[11px] text-slate-500">Memuat penugasan…</div>
+
+                            <label class="flex items-center justify-between text-sm text-slate-700 mt-3">
+                                <span class="font-semibold">Mode Tagging</span>
+                                <span class="qc-switch"><input type="checkbox" id="modeTagging" disabled><span></span></span>
+                            </label>
+                            <p id="infoTagging" class="mt-1.5 text-[11px] text-slate-500"></p>
+
+                            <button type="button" id="btnLokasiSaya" disabled
+                                class="mt-2 w-full py-1.5 rounded-lg bg-white border border-teal-200 text-teal-700 hover:bg-teal-50 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold transition">
+                                📍 Ambil Lokasi Saya (GPS)
+                            </button>
+                            </div>{{-- /#blokTagging --}}
+
+                            <div class="{{ $halamanTagging ? 'mt-3 pt-3 border-t border-teal-200/70' : 'mt-2' }}">
+                                <a id="btnExport" href="{{ route('tagging.export') }}"
+                                   class="block w-full py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold text-center transition">
+                                    ⬇ Unduh GeoJSON (QGIS)
+                                </a>
+                                @if (auth()->user()->isAdmin())
+                                    <label class="mt-2 block text-[11px] text-slate-600">
+                                        Cakupan unduhan
+                                        <select id="exportCakupan" class="mt-1 w-full text-xs rounded-lg border-slate-300 focus:ring-teal-500 focus:border-teal-500">
+                                            <option value="tagging">Hanya titik hasil tagging</option>
+                                            <option value="koreksi">Hanya titik yang dikoreksi (untuk memperbarui sumber data)</option>
+                                            <option value="semua">Semua titik, termasuk hasil import</option>
+                                        </select>
+                                    </label>
+                                @endif
+                                <p class="mt-1.5 text-[10px] leading-snug text-slate-400">
+                                    Field sama dengan file QGIS: id_assignment, idsls, no_bang, kode_bang_value, btt, bku, flag_repair, kk, usaha.
+                                    Mengikuti kegiatan &amp; SLS yang sedang dipilih.
+                                </p>
+                            </div>
+                        </div>
+
                         <div>
                             <label class="block text-xs font-semibold text-slate-700 mb-1">Kegiatan</label>
                             <select id="filterKegiatan"
@@ -107,6 +187,24 @@
                                     <option value="{{ $k->id }}">{{ $k->nama_kegiatan }}</option>
                                 @endforeach
                             </select>
+                        </div>
+
+                        {{-- ================= FILTER WILAYAH: KECAMATAN -> KELURAHAN ================= --}}
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Kecamatan</label>
+                                <select id="filterKecamatan" disabled
+                                    class="w-full text-sm rounded-lg border-slate-300 focus:ring-teal-500 focus:border-teal-500 disabled:bg-slate-100 disabled:text-slate-400">
+                                    <option value="">-- Semua Kecamatan --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Kelurahan / Desa</label>
+                                <select id="filterKelurahan" disabled
+                                    class="w-full text-sm rounded-lg border-slate-300 focus:ring-teal-500 focus:border-teal-500 disabled:bg-slate-100 disabled:text-slate-400">
+                                    <option value="">-- Semua Kelurahan --</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div>
@@ -178,6 +276,10 @@
                                 <span>Hanya Titik Bergerombol</span>
                                 <span class="qc-switch"><input type="checkbox" id="qcHanyaGerombol"><span></span></span>
                             </label>
+                            <label class="flex items-center justify-between text-sm text-slate-600 mt-2">
+                                <span>Hanya Perlu Perbaikan / Menunggu Verifikasi</span>
+                                <span class="qc-switch"><input type="checkbox" id="qcHanyaPerbaikan"><span></span></span>
+                            </label>
 
                             <p id="infoQc" class="mt-2 text-[11px] text-slate-400"></p>
                         </div>
@@ -201,6 +303,22 @@
                                     <span class="w-3 h-3 rounded-full bg-slate-500 inline-block"></span>
                                     Belum bisa dicek (batas SLS belum ada)
                                 </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="w-3 h-3 rounded-full bg-blue-500 inline-block" style="box-shadow:0 0 0 2px #7c3aed"></span>
+                                    Ditambahkan lewat tagging (tepi ungu)
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="w-3 h-3 rounded-full bg-blue-500 inline-block" style="box-shadow:0 0 0 2px #ef4444"></span>
+                                    Perlu perbaikan (cincin merah)
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="w-3 h-3 rounded-full bg-blue-500 inline-block" style="box-shadow:0 0 0 2px #f59e0b"></span>
+                                    Sudah diperbaiki, menunggu verifikasi (cincin kuning)
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="w-3 h-3 rounded-full bg-blue-500 inline-block" style="box-shadow:0 0 0 2px #16a34a"></span>
+                                    Terverifikasi admin (cincin hijau)
+                                </div>
                             </div>
                         </div>
 
@@ -211,6 +329,8 @@
                             <p><b id="rTanpa">0</b> kode SLS tidak ditemukan</p>
                             <p><b id="rBelum">0</b> belum bisa dicek</p>
                             <p><b id="rGerombol">0</b> titik bergerombol</p>
+                            <p><b id="rPerlu">0</b> perlu perbaikan</p>
+                            <p><b id="rSudah">0</b> menunggu verifikasi</p>
                         </div>
                     </div>
 
@@ -250,6 +370,103 @@
             </div>
         </div>
     </div>
+
+    {{-- ================= MODAL FORM TAGGING ================= --}}
+    <div id="modalTag" class="hidden fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/50">
+        <form id="formTag" class="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[92vh] overflow-y-auto" autocomplete="off">
+            <div class="px-5 pt-4 pb-3 border-b border-slate-200">
+                <h3 id="tagJudul" class="font-bold text-slate-800 text-sm">Tambah Titik Bangunan</h3>
+                <p id="tagInfo" class="text-xs text-slate-500 mt-0.5"></p>
+            </div>
+
+            <div class="p-5 space-y-4">
+                <div id="tagError" class="hidden p-2.5 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg"></div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="tagNomor" class="block text-xs font-semibold text-slate-700 mb-1">No. Bangunan <span class="font-normal text-slate-400">(no_bang)</span></label>
+                        <input id="tagNomor" type="text" inputmode="numeric" maxlength="6" required
+                            class="w-full text-sm rounded-lg border-slate-300 focus:ring-teal-500 focus:border-teal-500">
+                    </div>
+                    <div>
+                        <label for="tagKode" class="block text-xs font-semibold text-slate-700 mb-1">Kode Jenis <span class="font-normal text-slate-400">(kode_bang_value)</span></label>
+                        <input id="tagKode" type="text" maxlength="10" placeholder="1 / 2 / 3 …"
+                            class="w-full text-sm rounded-lg border-slate-300 focus:ring-teal-500 focus:border-teal-500">
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" id="tagBtt" class="rounded border-slate-300 text-teal-600 focus:ring-teal-500">
+                        Bangunan tempat tinggal <span class="text-xs text-slate-400">(btt)</span>
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" id="tagBku" class="rounded border-slate-300 text-teal-600 focus:ring-teal-500">
+                        Bangunan khusus usaha <span class="text-xs text-slate-400">(bku)</span>
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" id="tagRepair" class="rounded border-slate-300 text-teal-600 focus:ring-teal-500">
+                        Perlu perbaikan <span class="text-xs text-slate-400">(flag_repair)</span>
+                    </label>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="tagKk" class="block text-xs font-semibold text-slate-700 mb-1">Jumlah KK <span class="font-normal text-slate-400">(kk)</span></label>
+                        <input id="tagKk" type="number" min="0" max="999" value="0" required
+                            class="w-full text-sm rounded-lg border-slate-300 focus:ring-teal-500 focus:border-teal-500">
+                    </div>
+                    <div>
+                        <label for="tagUsaha" class="block text-xs font-semibold text-slate-700 mb-1">Jumlah Usaha <span class="font-normal text-slate-400">(usaha)</span></label>
+                        <input id="tagUsaha" type="number" min="0" max="999" value="0" required
+                            class="w-full text-sm rounded-lg border-slate-300 focus:ring-teal-500 focus:border-teal-500">
+                    </div>
+                </div>
+
+                {{-- Detail usaha (opsional) --}}
+                <div class="rounded-lg border border-slate-200 p-3">
+                    <div class="flex items-center justify-between">
+                        <p class="text-xs font-semibold text-slate-700">Daftar Usaha <span class="font-normal text-slate-400">(jika ada)</span></p>
+                        <button type="button" id="tagTambahUsaha" class="text-xs font-semibold text-teal-700 hover:underline">+ Tambah usaha</button>
+                    </div>
+                    <div id="tagUsahaList" class="mt-2 space-y-2"></div>
+                    <p class="mt-1 text-[11px] text-slate-400">Jumlah Usaha mengikuti daftar ini bila diisi.</p>
+                </div>
+
+                {{-- Detail keluarga / rumah tangga (opsional) --}}
+                <div class="rounded-lg border border-slate-200 p-3">
+                    <div class="flex items-center justify-between">
+                        <p class="text-xs font-semibold text-slate-700">Daftar Keluarga (KK) <span class="font-normal text-slate-400">(jika ada)</span></p>
+                        <button type="button" id="tagTambahKk" class="text-xs font-semibold text-teal-700 hover:underline">+ Tambah KK</button>
+                    </div>
+                    <div id="tagKkList" class="mt-2 space-y-2"></div>
+                    <p class="mt-1 text-[11px] text-slate-400">Jumlah KK mengikuti daftar ini bila diisi. Nomor KK ditampilkan tersamar di peta.</p>
+                </div>
+            </div>
+
+            <div class="px-5 pb-5 flex items-center gap-2">
+                <button type="button" id="tagHapus" class="hidden px-3 py-2 rounded-lg bg-white border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold transition">Hapus</button>
+                <span class="flex-1"></span>
+                <button type="button" id="tagBatal" class="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition">Batal</button>
+                <button type="submit" id="tagSimpan" class="px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-xs font-semibold transition">Simpan</button>
+            </div>
+        </form>
+    </div>
+
+    {{-- ================= PANEL GPS ================= --}}
+    <div id="gpsBar" class="hidden">
+        <div class="gps-baris">
+            <span style="font-weight:600;color:#0f172a">Akurasi GPS</span>
+            <span id="gpsAkurasi" class="gps-angka">…</span>
+        </div>
+        <div id="gpsStatus" class="gps-status">Mencari sinyal GPS…</div>
+        <div class="gps-aksi">
+            <button type="button" id="gpsBatal" class="gps-btn gps-btn-abu">Batal</button>
+            <button type="button" id="gpsGunakan" class="gps-btn gps-btn-utama" disabled>Gunakan lokasi ini</button>
+        </div>
+    </div>
+
+    <div id="toastTag" class="hidden"></div>
 
     <script>
         const urlDataSls = @json(route('peta.data.sls'));
@@ -331,6 +548,46 @@
             belum_dicek: '#64748b',
         };
 
+        // Status perbaikan titik (kolom bangunan.status_perbaikan): cincin penanda di peta
+        const warnaPerbaikan = { perlu_perbaikan: '#ef4444', sudah_diperbaiki: '#f59e0b', terverifikasi: '#16a34a' };
+        const labelPerbaikan = { perlu_perbaikan: 'PERLU PERBAIKAN', sudah_diperbaiki: 'SUDAH DIPERBAIKI', terverifikasi: 'TERVERIFIKASI' };
+
+        function ringStatus(feature) {
+            const w = warnaPerbaikan[feature.properties.status_perbaikan];
+            return w ? `0 0 0 3px ${w},` : '';
+        }
+
+        let modeGeser = null;   // {id, sls, nomor} saat titik sedang digeser
+
+        // ================= BUKA POPUP TITIK =================
+        // Dipakai klik titik langsung DAN klik polygon yang tepat mengenai titik,
+        // supaya popup titik selalu sama di semua kegiatan (apa pun status polygon SLS-nya).
+        function bukaPopupTitik(feature, layer) {
+            if (modeGeser) return;                 // saat menggeser titik, klik dipakai untuk memilih posisi
+            if (layer._memuatDetail) return;   // cegah dobel kalau 2 event datang sekaligus
+            layer._memuatDetail = true;
+
+            fetch(`${urlDetailBangunan}/${feature.properties.id}`)
+                .then(res => res.json())
+                .then(detail => layer.bindPopup(popupBangunan(detail), { maxWidth: 320 }).openPopup())
+                .finally(() => { layer._memuatDetail = false; });
+        }
+
+        // Titik bangunan (lingkaran kecil di canvas) terdekat dari posisi klik, dalam radius piksel.
+        function titikDekatKlik(latlng, batasPx = 14) {
+            if (! bangunanLayer || ! map.hasLayer(bangunanLayer)) return null;
+
+            const p = map.latLngToContainerPoint(latlng);
+            let terdekat = null, jarakMin = batasPx;
+
+            bangunanLayer.eachLayer(l => {
+                if (! (l instanceof L.CircleMarker) || ! l.feature) return;
+                const j = p.distanceTo(map.latLngToContainerPoint(l.getLatLng()));
+                if (j <= jarakMin) { jarakMin = j; terdekat = l; }
+            });
+            return terdekat;
+        }
+
         // ================= BATAS SLS =================
         const styleSls = { color: '#ef4444', weight: 3, fillOpacity: 0.05 };
 
@@ -340,6 +597,8 @@
         const slsIndex = {};
         let dataDetailSls = null;
         let daftarSls = [];        // daftar SLS untuk dropdown
+        let kecamatanTerpilih = '';   // filter wilayah: kecamatan ('' = semua)
+        let kelurahanTerpilih = '';   // filter wilayah: kelurahan/desa ('' = semua)
 
         function kegiatanDipilih() {
             return document.getElementById('filterKegiatan').value;
@@ -419,12 +678,30 @@
 
             if (! kegiatanDipilih() || ! slsGeojson) return;
 
+            const ids = idSlsWilayah();
+
             slsLayer = L.geoJSON(slsGeojson, {
-                filter: (feature) => ! slsTerpilih || feature.properties.id == slsTerpilih,
+                filter: (feature) =>
+                    // SLS adalah snapshot per kegiatan: gambar hanya polygon milik kegiatan terpilih.
+                    String(feature.properties.kegiatan_id) === String(kegiatanDipilih())
+                    && (! ids || ids.has(feature.properties.id))
+                    && (! slsTerpilih || feature.properties.id == slsTerpilih),
                 style: styleSls,
                 onEachFeature: (feature, layer) => {
                     slsIndex[feature.properties.id] = layer;
-                    layer.on('click', (e) => tampilStatistikSls(feature.properties.id, e.latlng));
+                    layer.on('click', (e) => {
+                        if (modeTaggingAktif() || modeGeser) return;   // saat tagging/geser, klik di polygon = menaruh titik (ditangani klik peta)
+
+                        // Titik bangunan berada DI DALAM polygon. Kalau klik ini mengenai sebuah titik,
+                        // tampilkan popup titik itu (sama seperti kegiatan lain), bukan statistik SLS.
+                        const titik = titikDekatKlik(e.latlng);
+                        if (titik) {
+                            L.DomEvent.stopPropagation(e);
+                            bukaPopupTitik(titik.feature, titik);
+                            return;
+                        }
+                        tampilStatistikSls(feature.properties.id, e.latlng);
+                    });
                 },
             });
 
@@ -450,8 +727,9 @@
             slsTerpilih = id;
             map.closePopup();
             renderSls();
-            renderBangunan();   
+            renderBangunan();
             zoomKeSls();
+            aturModeTagging();
         }
 
         // Saat kegiatan diganti
@@ -460,24 +738,38 @@
             const input = document.getElementById('filterSls');
 
             slsTerpilih = null;
+            kecamatanTerpilih = '';
+            kelurahanTerpilih = '';
             input.disabled = ! ada;
             input.value = '';
             document.getElementById('infoSls').classList.toggle('hidden', ada);
             document.getElementById('slsList').classList.add('hidden');
 
             map.closePopup();
-            renderSls();
+            muatSls();   // [#9] memuat polygon kegiatan ini (sekaligus mengosongkan polygon kegiatan lama)
             muatDaftarSls();
             muatBangunan();   // zoom dilakukan setelah titik selesai dimuat
+            aturModeTagging();
         }
 
-        // Polygon SLS dari server (hanya untuk digambar)
+        // Polygon SLS dari server (hanya untuk digambar). [#9] Dimuat per kegiatan supaya ringan.
+        let permintaanSls = 0;   // respons dari permintaan lama diabaikan kalau kegiatan sudah berganti
         function muatSls() {
-            fetch(urlDataSls)
+            const kegiatanId = kegiatanDipilih();
+            const nomor = ++permintaanSls;
+
+            slsGeojson = null;
+            renderSls();   // kosongkan polygon kegiatan sebelumnya
+            if (! kegiatanId) return;
+
+            fetch(`${urlDataSls}?kegiatan_id=${encodeURIComponent(kegiatanId)}`, { headers: { 'Accept': 'application/json' } })
                 .then(res => res.json())
                 .then(geojson => {
+                    if (nomor !== permintaanSls || ! geojson || ! geojson.features) return;
                     slsGeojson = geojson;
                     renderSls();
+                    if (slsTerpilih) zoomKeSls();
+                    aturModeTagging();   // status "SLS punya polygon" baru diketahui di sini
                 });
         }
 
@@ -485,6 +777,7 @@
         function muatDaftarSls() {
             daftarSls = [];
             isiListSls();
+            isiDropdownKecamatan();   // mengosongkan dropdown wilayah
             document.getElementById('jumlahSls').textContent = 0;
 
             const kegiatanId = kegiatanDipilih();
@@ -495,13 +788,61 @@
                 .then(list => {
                     daftarSls = list;
                     document.getElementById('jumlahSls').textContent = list.length;
+                    isiDropdownKecamatan();
                     isiListSls();
                 });
         }
 
+        // ================= FILTER WILAYAH (KECAMATAN -> KELURAHAN) =================
+        function unik(arr) {
+            return [...new Set(arr.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+        }
+
+        function isiDropdownKecamatan() {
+            const el = document.getElementById('filterKecamatan');
+            el.innerHTML = '<option value="">-- Semua Kecamatan --</option>' +
+                unik(daftarSls.map(s => s.kecamatan))
+                    .map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+            el.value = kecamatanTerpilih;
+            el.disabled = daftarSls.length === 0;
+            isiDropdownKelurahan();
+        }
+
+        function isiDropdownKelurahan() {
+            const el = document.getElementById('filterKelurahan');
+            const sumber = daftarSls.filter(s => s.kecamatan === kecamatanTerpilih);
+            el.innerHTML = '<option value="">-- Semua Kelurahan --</option>' +
+                unik(sumber.map(s => s.desa_kelurahan))
+                    .map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
+            el.value = kelurahanTerpilih;
+            el.disabled = ! kecamatanTerpilih;
+        }
+
+        function cocokWilayah(s) {
+            return (! kecamatanTerpilih || s.kecamatan === kecamatanTerpilih)
+                && (! kelurahanTerpilih || s.desa_kelurahan === kelurahanTerpilih);
+        }
+
+        // null = tidak ada filter wilayah (tampilkan semua, termasuk titik tanpa SLS)
+        function idSlsWilayah() {
+            if (! kecamatanTerpilih) return null;
+            return new Set(daftarSls.filter(cocokWilayah).map(s => s.id));
+        }
+
+        function terapkanWilayah() {
+            slsTerpilih = null;
+            document.getElementById('filterSls').value = '';
+            map.closePopup();
+            isiListSls();
+            renderSls();
+            renderBangunan();
+            zoomKeSls();
+            aturModeTagging();
+        }
+
         function isiListSls(cari = '') {
             const q = cari.trim().toLowerCase();
-            const items = daftarSls.filter(p =>
+            const items = daftarSls.filter(cocokWilayah).filter(p =>
                 `${p.id_sls} ${p.nama_sls} ${p.desa_kelurahan}`.toLowerCase().includes(q));
 
             document.getElementById('slsList').innerHTML =
@@ -514,7 +855,10 @@
         }
 
         // ================= POPUP 1 BANGUNAN =================
+        const cacheDetail = {};
+
         function popupBangunan(d) {
+            cacheDetail[d.id] = d;
             const adaUsaha = d.usaha && d.usaha.length > 0;
             const adaRt = d.rumah_tangga && d.rumah_tangga.length > 0;
 
@@ -530,6 +874,13 @@
                 badges += `<span class="pc-badge pc-badge-usaha">${esc('USAHA' + jenis)}</span>`;
             } else if (d.flag_bku) {
                 badges += `<span class="pc-badge pc-badge-usaha">BANGUNAN USAHA</span>`;
+            }
+
+            if (d.status_perbaikan && d.status_perbaikan !== 'normal') {
+                const kelas = { perlu_perbaikan: 'pc-badge-perlu', sudah_diperbaiki: 'pc-badge-sudah', terverifikasi: 'pc-badge-verif' }[d.status_perbaikan] ?? 'pc-badge-muted';
+                badges += `<span class="pc-badge ${kelas}">${esc(labelPerbaikan[d.status_perbaikan] ?? d.status_perbaikan)}</span>`;
+            } else if (d.diedit_manual_at) {
+                badges += `<span class="pc-badge pc-badge-muted" title="Dikoreksi admin lewat peta; tidak ditimpa import ulang selama posisinya di file tidak berubah">DIEDIT MANUAL</span>`;
             }
 
             if (d.status_kondisi === 'normal') {
@@ -605,6 +956,22 @@
                     </div>`;
             }
 
+            let koreksi = '';
+            if (['sudah_diperbaiki', 'terverifikasi'].includes(d.status_perbaikan) || d.latitude_asal != null) {
+                const asal = d.latitude_asal != null
+                    ? `<div>Koordinat awal (file): <b>${esc(Number(d.latitude_asal).toFixed(6))}, ${esc(Number(d.longitude_asal).toFixed(6))}</b></div>` : '';
+                const oleh = d.dikoreksi_oleh
+                    ? `<div>Dikoreksi oleh: <b>${esc(d.dikoreksi_oleh)}</b>${d.dikoreksi_at ? ' &middot; ' + esc(new Date(d.dikoreksi_at).toLocaleString('id-ID')) : ''}</div>` : '';
+                const status = d.status_perbaikan === 'terverifikasi' ? 'Terverifikasi admin'
+                    : (d.status_perbaikan === 'sudah_diperbaiki' ? 'Menunggu verifikasi admin' : 'Belum diverifikasi');
+                koreksi = `<div class="pc-koreksi-box"><div class="pc-sub-title">Koreksi</div>${oleh}${asal}<div>Status: <b>${status}</b></div></div>`;
+            }
+
+            // Catatan admin saat mengembalikan koreksi: petugas perlu tahu apa yang harus diperbaiki.
+            const alasanTolak = d.alasan_tolak
+                ? `<div class="pc-koreksi-box" style="border-color:#fca5a5;background:#fef2f2"><div class="pc-sub-title" style="color:#b91c1c">Dikembalikan admin</div><div>${esc(d.alasan_tolak)}</div></div>`
+                : '';
+
             const gmaps = `https://www.google.com/maps?q=${encodeURIComponent(d.latitude + ',' + d.longitude)}`;
             const gnav = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(d.latitude + ',' + d.longitude)}`;
 
@@ -619,6 +986,23 @@
                     ${blokRt}
                     ${blokUsaha}
                     ${kotak}
+                    ${koreksi}
+                    ${alasanTolak}
+                    ${d.sumber === 'tagging' ? `
+                        <div class="pc-row" style="margin-top:6px">Ditag lewat aplikasi oleh: <b>${esc(d.ditag_oleh ?? '-')}</b></div>
+                        <div class="pc-row">Metode: <b>${d.sumber_tag === 'gps' ? 'GPS di lokasi' : 'Klik peta (admin)'}</b>${d.akurasi_gps != null ? ` &nbsp;|&nbsp; Akurasi: <b>±${esc(Number(d.akurasi_gps).toFixed(1))} m</b>` : ''}</div>
+                        ${d.ditandai_at ? `<div class="pc-row">Waktu: <b>${esc(new Date(d.ditandai_at).toLocaleString('id-ID'))}</b></div>` : ''}` : ''}
+                    ${d.dapat_diubah ? `
+                    <div class="pc-actions">
+                        <button type="button" class="pc-btn pc-btn-secondary" onclick="bukaFormUbah(${Number(d.id)})">✏️ Ubah</button>
+                        ${d.sls_id ? `<button type="button" class="pc-btn pc-btn-secondary" onclick="mulaiGeser(${Number(d.id)})">📍 Ambil ulang lokasi</button>` : ''}
+                        ${d.dapat_dihapus ? `<button type="button" class="pc-btn pc-btn-secondary" style="color:#dc2626" onclick="hapusTag(${Number(d.id)})">🗑 Hapus</button>` : ''}
+                    </div>` : ''}
+                    ${d.dapat_verifikasi ? `
+                    <div class="pc-actions">
+                        <button type="button" class="pc-btn pc-btn-primary" onclick="verifikasiTitik(${Number(d.id)})">✅ Verifikasi</button>
+                        <button type="button" class="pc-btn pc-btn-secondary" style="color:#dc2626" onclick="kembalikanTitik(${Number(d.id)})">↩ Kembalikan</button>
+                    </div>` : ''}
                     <div class="pc-actions">
                         <a href="${gmaps}" target="_blank" rel="noopener" class="pc-btn pc-btn-secondary">📍 Lihat Maps</a>
                         <a href="${gnav}" target="_blank" rel="noopener" class="pc-btn pc-btn-primary">🚗 Navigasi</a>
@@ -628,8 +1012,8 @@
         }
 
         // ================= QC SPASIAL =================
-        const JARAK_GEROMBOL_M = 15;   
-        const MIN_GEROMBOL = 3;        
+        const JARAK_GEROMBOL_M = 15;
+        const MIN_GEROMBOL = 3;
 
         function qcOn(id) {
             return document.getElementById(id).checked;
@@ -637,10 +1021,14 @@
 
         function qcFlag(feature) {
             const p = feature.properties;
-            return { luar: p.status_kondisi === 'di_luar_sls', gerombol: !! p._gerombol };
+            return {
+                luar: p.status_kondisi === 'di_luar_sls',
+                gerombol: !! p._gerombol,
+                perbaikan: ['perlu_perbaikan', 'sudah_diperbaiki'].includes(p.status_perbaikan),
+            };
         }
 
-        
+
         function hitungBergerombol(features) {
             const sel = 0.00015;   // ± 16 meter
             const grid = new Map();
@@ -685,7 +1073,7 @@
         // Mode QC aktif = ada toggle QC yang menyala (toggle luar batas yang nonaktif tidak dihitung)
         function qcAktif() {
             const sorotLuarAktif = qcOn('qcSorotLuar') && ! document.getElementById('qcSorotLuar').disabled;
-            return qcOn('qcSorotGerombol') || qcOn('qcHanyaGerombol') || qcOn('qcHanyaLuar') || sorotLuarAktif;
+            return qcOn('qcSorotGerombol') || qcOn('qcHanyaGerombol') || qcOn('qcHanyaLuar') || qcOn('qcHanyaPerbaikan') || sorotLuarAktif;
         }
 
         // Toggle "luar batas" otomatis aktif kalau sudah ada titik di_luar_sls
@@ -717,7 +1105,7 @@
             const warna = warnaStatus[p.status_kondisi] ?? '#64748b';
             return L.divIcon({
                 className: '',
-                html: `<div class="marker-nomor" style="background:${warna};box-shadow:${ringQc(feature)}0 1px 4px rgba(0,0,0,.5)">${esc(p.nomor_bangunan ?? '?')}</div>`,
+                html: `<div class="marker-nomor" style="background:${warna};${p.sumber === 'tagging' ? 'border-color:#7c3aed;' : ''}box-shadow:${ringStatus(feature)}${ringQc(feature)}0 1px 4px rgba(0,0,0,.5)">${esc(p.nomor_bangunan ?? '?')}</div>`,
                 iconSize: [26, 26],
                 iconAnchor: [13, 13],
                 popupAnchor: [0, -13],
@@ -728,14 +1116,14 @@
             const warna = warnaStatus[feature.properties.status_kondisi] ?? '#64748b';
             return L.divIcon({
                 className: '',
-                html: `<div style="width:12px;height:12px;border-radius:50%;background:${warna};border:2px solid #fff;box-shadow:${ringQc(feature)}0 1px 3px rgba(0,0,0,.5)"></div>`,
+                html: `<div style="width:12px;height:12px;border-radius:50%;background:${warna};border:2px solid ${feature.properties.sumber === 'tagging' ? '#7c3aed' : '#fff'};box-shadow:${ringStatus(feature)}${ringQc(feature)}0 1px 3px rgba(0,0,0,.5)"></div>`,
                 iconSize: [12, 12],
                 iconAnchor: [6, 6],
                 popupAnchor: [0, -6],
             });
         }
 
-     
+
         function iconCluster(cluster) {
             const anak = cluster.getAllChildMarkers();
             const n = anak.length;
@@ -784,16 +1172,21 @@
                 return;
             }
 
-            const semua = dataBangunanGeojson.features
-                .filter(f => ! slsTerpilih || f.properties.sls_id == slsTerpilih);
+            // Saring per wilayah (kecamatan/kelurahan) lalu per SLS terpilih
+            const ids = idSlsWilayah();
+            const semua = dataBangunanGeojson.features.filter(f =>
+                (! ids || ids.has(f.properties.sls_id))
+                && (! slsTerpilih || f.properties.sls_id == slsTerpilih));
 
             // Ringkasan dihitung dari semua titik (sebelum filter "Hanya ...")
             const hitung = { normal: 0, di_luar_sls: 0, tanpa_sls: 0, belum_dicek: 0 };
-            let jumlahGerombol = 0;
+            let jumlahGerombol = 0, jumlahPerlu = 0, jumlahSudah = 0;
             semua.forEach(f => {
                 const status = f.properties.status_kondisi;
                 hitung[status] = (hitung[status] ?? 0) + 1;
                 if (f.properties._gerombol) jumlahGerombol++;
+                if (f.properties.status_perbaikan === 'perlu_perbaikan') jumlahPerlu++;
+                if (f.properties.status_perbaikan === 'sudah_diperbaiki') jumlahSudah++;
             });
 
             const total = hitung.normal + hitung.di_luar_sls + hitung.tanpa_sls + hitung.belum_dicek;
@@ -803,25 +1196,28 @@
             document.getElementById('rTanpa').textContent = hitung.tanpa_sls;
             document.getElementById('rBelum').textContent = hitung.belum_dicek;
             document.getElementById('rGerombol').textContent = jumlahGerombol;
+            document.getElementById('rPerlu').textContent = jumlahPerlu;
+            document.getElementById('rSudah').textContent = jumlahSudah;
             document.getElementById('ringkasan').classList.remove('hidden');
 
             aturToggleQc(hitung);   // harus sebelum membaca toggle "Hanya ..."
 
-            // Filter "Hanya ...": 
+            // Filter "Hanya ...":
             const hanyaLuar = qcOn('qcHanyaLuar');
             const hanyaGerombol = qcOn('qcHanyaGerombol');
-            const fitur = (hanyaLuar || hanyaGerombol)
+            const hanyaPerbaikan = qcOn('qcHanyaPerbaikan');
+            const fitur = (hanyaLuar || hanyaGerombol || hanyaPerbaikan)
                 ? semua.filter(f => {
                     const q = qcFlag(f);
-                    return (hanyaLuar && q.luar) || (hanyaGerombol && q.gerombol);
+                    return (hanyaLuar && q.luar) || (hanyaGerombol && q.gerombol) || (hanyaPerbaikan && q.perbaikan);
                 })
                 : semua;
 
             const klikTitik = (feature, layer) => {
-                layer.on('click', () => {
-                    fetch(`${urlDetailBangunan}/${feature.properties.id}`)
-                        .then(res => res.json())
-                        .then(detail => layer.bindPopup(popupBangunan(detail), { maxWidth: 320 }).openPopup());
+                layer.on('click', (ev) => {
+                    if (modeGeser) return;            // biarkan klik naik ke peta (memilih posisi baru)
+                    L.DomEvent.stopPropagation(ev);   // klik titik tidak boleh ikut menaruh titik baru
+                    bukaPopupTitik(feature, layer);
                 });
             };
 
@@ -832,8 +1228,11 @@
                         const status = feature.properties.status_kondisi;
 
                         if (! slsTerpilih) {
+                            const wp = warnaPerbaikan[feature.properties.status_perbaikan];   // cincin status perbaikan
                             return L.circleMarker(latlng, {
-                                renderer: canvasTitik, radius: 5, weight: 1, color: '#fff',
+                                renderer: canvasTitik, radius: wp ? 6 : 5,
+                                weight: wp ? 3 : (feature.properties.sumber === 'tagging' ? 2 : 1),
+                                color: wp ?? (feature.properties.sumber === 'tagging' ? '#7c3aed' : '#fff'),
                                 fillColor: warnaStatus[status] ?? '#64748b', fillOpacity: 0.9,
                             });
                         }
@@ -865,8 +1264,682 @@
             if (document.getElementById('layerBangunan').checked) bangunanLayer.addTo(map);
         }
 
+        // ================= TAGGING =================
+        const urlTagging = @json(url('/tagging'));
+        const urlPenugasan = @json(route('tagging.penugasan'));
+        const urlNomor = @json(route('tagging.nomor'));
+        const urlExport = @json(route('tagging.export'));
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+
+        let tagBebas = @json(auth()->user()->isAdmin());   // admin: boleh di SLS mana pun
+        let penugasanSaya = [];                            // viewer: SLS yang ditugaskan admin
+        let markerSementara = null;
+        let formTag = null;                                // {mode: 'tambah'|'ubah', ...}
+        const AKURASI_MAKS = @json(config('tagging.akurasi_maks_m'));   // meter
+        let gpsWatch = null, gpsMarker = null, gpsCircle = null, gpsTerakhir = null;
+
+        const el = (id) => document.getElementById(id);
+
+        function toast(pesan, galat = false) {
+            const t = el('toastTag');
+            t.textContent = pesan;
+            t.style.background = galat ? '#dc2626' : '#0f766e';
+            t.classList.remove('hidden');
+            clearTimeout(toast._t);
+            toast._t = setTimeout(() => t.classList.add('hidden'), 3500);
+        }
+
+        function modeTaggingAktif() {
+            return el('modeTagging').checked && ! el('modeTagging').disabled;
+        }
+
+        function slsPunyaPolygon(id) {
+            return !! slsGeojson && slsGeojson.features.some(f => f.properties.id == id);
+        }
+
+        function bolehTaggingDi(kegiatan, sls) {
+            if (! kegiatan || ! sls) return false;
+            return tagBebas || penugasanSaya.some(p => p.kegiatan_id == kegiatan && p.sls_id == sls);
+        }
+
+        // Titik di dalam polygon SLS? true/false; null = SLS tidak punya polygon.
+        function titikDalamSls(latlng, slsId) {
+            const f = slsGeojson?.features.find(x => x.properties.id == slsId);
+            if (! f) return null;
+
+            const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates]
+                : (f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates : []);
+
+            const dalamCincin = (ring) => {
+                let dalam = false;
+                for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+                    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+                    if ((yi > latlng.lat) !== (yj > latlng.lat)
+                        && latlng.lng < (xj - xi) * (latlng.lat - yi) / (yj - yi) + xi) dalam = ! dalam;
+                }
+                return dalam;
+            };
+
+            return polys.some(poly => dalamCincin(poly[0]) && ! poly.slice(1).some(dalamCincin));
+        }
+
+        // Aktif/nonaktifkan toggle sesuai kegiatan + SLS yang sedang dipilih
+        function aturModeTagging() {
+            const toggle = el('modeTagging');
+            const kegiatan = Number(kegiatanDipilih()) || null;
+            const sls = slsTerpilih ? Number(slsTerpilih) : null;
+
+            let boleh = bolehTaggingDi(kegiatan, sls);
+            let pesan;
+
+            if (! kegiatan) {
+                pesan = tagBebas ? 'Pilih kegiatan, lalu satu SLS.' : 'Pilih SLS penugasan Anda di atas.';
+            } else if (! sls) {
+                pesan = tagBebas
+                    ? 'Pilih satu SLS (filter di bawah) untuk mulai tagging.'
+                    : (penugasanSaya.length ? 'Pilih salah satu SLS penugasan Anda di atas.' : 'Belum ada SLS yang ditugaskan kepada Anda. Hubungi admin.');
+            } else if (! boleh) {
+                pesan = 'SLS ini tidak ditugaskan kepada Anda, tagging dinonaktifkan.';
+            } else if (! slsPunyaPolygon(sls) && ! tagBebas) {
+                boleh = false;
+                pesan = slsGeojson ? 'SLS ini belum punya batas polygon, tagging belum bisa dilakukan. Hubungi admin.' : 'Memuat batas SLS…';
+            } else {
+                pesan = null;
+            }
+
+            toggle.disabled = ! boleh;
+            if (! boleh) toggle.checked = false;
+            toggle.closest('label').classList.toggle('qc-row-disabled', ! boleh);
+
+            el('infoTagging').textContent = pesan ?? (toggle.checked
+                ? (tagBebas
+                    ? 'Aktif: klik di dalam batas SLS, atau pakai GPS.'
+                    : 'Aktif: datangi bangunan, lalu tekan "Ambil Lokasi Saya".')
+                : 'Nyalakan Mode Tagging untuk mulai.');
+            if (! toggle.checked) gpsBerhenti();
+
+            el('btnLokasiSaya').disabled = ! toggle.checked;
+            map.getContainer().classList.toggle('mode-tagging', toggle.checked);
+
+            document.querySelectorAll('.btn-tugas').forEach(b => {
+                b.classList.toggle('aktif', Number(b.dataset.k) === kegiatan && Number(b.dataset.s) === sls);
+            });
+        }
+
+        // ----- Panel "Penugasan Saya" -----
+        function renderPenugasan() {
+            const box = el('daftarPenugasan');
+
+            if (tagBebas) {
+                box.textContent = 'Admin dapat tagging di SLS mana pun: pilih kegiatan dan SLS di bawah.';
+                return;
+            }
+            if (! penugasanSaya.length) {
+                box.textContent = 'Belum ada SLS yang ditugaskan kepada Anda. Hubungi admin.';
+                return;
+            }
+
+            const grup = {};
+            penugasanSaya.forEach(p => (grup[p.nama_kegiatan] ??= []).push(p));
+
+            box.innerHTML = '<p class="font-semibold text-slate-700 mb-0.5">SLS penugasan Anda</p>'
+                + Object.entries(grup).map(([nama, items]) => `
+                    <div class="mt-2">
+                        <p class="text-[10px] uppercase tracking-wide text-slate-400">${esc(nama)}</p>
+                        ${items.map(p => `
+                            <button type="button" class="btn-tugas" data-k="${p.kegiatan_id}" data-s="${p.sls_id}" ${p.punya_polygon ? '' : 'disabled title="SLS ini belum punya batas polygon"'}>
+                                <b>${esc(p.id_sls)}</b> — ${esc(p.nama_sls)}
+                                <small>${esc(p.desa_kelurahan)} • ${p.jumlah_titik} titik (${p.titik_saya} oleh Anda)${p.punya_polygon ? '' : ' • tanpa polygon'}</small>
+                            </button>`).join('')}
+                    </div>`).join('');
+        }
+
+        function mulaiTugas(kegiatanId, slsId) {
+            const item = penugasanSaya.find(p => p.kegiatan_id == kegiatanId && p.sls_id == slsId);
+            if (! item) return;
+
+            const pilih = el('filterKegiatan');
+            if (String(pilih.value) !== String(kegiatanId)) {
+                pilih.value = String(kegiatanId);
+                gantiKegiatan();
+            }
+
+            // Penugasan bisa SLS yang belum punya titik: jangan tersaring oleh filter wilayah.
+            kecamatanTerpilih = '';
+            kelurahanTerpilih = '';
+            isiDropdownKecamatan();
+
+            el('filterSls').disabled = false;
+            el('filterSls').value = item.id_sls;
+            pilihSls(Number(slsId));
+
+            if (! el('modeTagging').disabled) {
+                el('modeTagging').checked = true;
+                aturModeTagging();
+            }
+        }
+
+        function muatPenugasan() {
+            fetch(urlPenugasan, { headers: { 'Accept': 'application/json' } })
+                .then(res => res.json())
+                .then(j => {
+                    tagBebas = !! j.bebas;
+                    penugasanSaya = j.penugasan ?? [];
+                    renderPenugasan();
+                    aturModeTagging();
+
+                    // Dibuka dari menu "Tagging": arahkan pandangan ke panel tagging (penting di layar kecil)
+                    if (new URLSearchParams(location.search).get('mode') === 'tagging') {
+                        el('panelTagging')?.scrollIntoView({ block: 'nearest' });
+                    }
+
+                    // Viewer: langsung mulai di SLS penugasan pertama (kecuali dibuka dari dashboard dengan ?kegiatan=)
+                    const slsAwal = new URLSearchParams(location.search).get('sls');
+                    if (! tagBebas && slsAwal && kegiatanAwal
+                        && penugasanSaya.some(p => p.kegiatan_id == kegiatanAwal && p.sls_id == slsAwal)) {
+                        mulaiTugas(Number(kegiatanAwal), Number(slsAwal));   // dibuka dari "Penugasan Saya"
+                    } else if (! tagBebas && ! kegiatanAwal) {
+                        const pertama = penugasanSaya.find(p => p.punya_polygon);
+                        if (pertama) mulaiTugas(pertama.kegiatan_id, pertama.sls_id);
+                    }
+                })
+                .catch(() => { el('daftarPenugasan').textContent = 'Gagal memuat penugasan.'; });
+        }
+
+        el('daftarPenugasan').addEventListener('click', (e) => {
+            const b = e.target.closest('.btn-tugas');
+            if (b && ! b.disabled) mulaiTugas(Number(b.dataset.k), Number(b.dataset.s));
+        });
+
+        el('modeTagging').addEventListener('change', () => {
+            if (! el('modeTagging').checked) hapusMarkerSementara();
+            aturModeTagging();
+        });
+
+        // ----- Form tambah / ubah -----
+        function hapusMarkerSementara() {
+            if (markerSementara) { map.removeLayer(markerSementara); markerSementara = null; }
+        }
+
+        function tampilGalat(pesan) {
+            const box = el('tagError');
+            box.textContent = pesan || '';
+            box.classList.toggle('hidden', ! pesan);
+        }
+
+        function infoSlsAktif() {
+            const s = daftarSlsLengkap().find(x => x.id == slsTerpilih);
+            return s ? `SLS ${s.id_sls} — ${s.nama_sls}` : `SLS #${slsTerpilih}`;
+        }
+
+        // Info SLS untuk judul form: dari penugasan (viewer) atau daftar SLS kegiatan (admin)
+        function daftarSlsLengkap() {
+            return [
+                ...penugasanSaya.map(p => ({ id: p.sls_id, id_sls: p.id_sls, nama_sls: p.nama_sls })),
+                ...daftarSls,
+            ];
+        }
+
+        function isiForm(nilai) {
+            el('tagNomor').value = nilai.nomor ?? '';
+            el('tagKode').value = nilai.kode ?? '';
+            el('tagBtt').checked = !! nilai.btt;
+            el('tagBku').checked = !! nilai.bku;
+            el('tagRepair').checked = !! nilai.repair;
+            el('tagKk').value = nilai.kk ?? 0;
+            el('tagUsaha').value = nilai.usaha ?? 0;
+
+            el('tagUsahaList').innerHTML = '';
+            el('tagKkList').innerHTML = '';
+            (nilai.usahaList ?? []).forEach(tambahBarisUsaha);
+            (nilai.keluargaList ?? []).forEach(tambahBarisKeluarga);
+            sinkronJumlah();
+            tampilGalat('');
+        }
+
+        // ----- Daftar usaha & keluarga di form tagging -----
+        const kelasInput = 'w-full text-xs rounded-lg border-slate-300 focus:ring-teal-500 focus:border-teal-500';
+
+        function tambahBarisUsaha(v = {}) {
+            const div = document.createElement('div');
+            div.className = 'baris-usaha flex items-start gap-2';
+            div.innerHTML = `
+                <div class="flex-1 grid grid-cols-2 gap-2">
+                    <input data-f="nama_usaha" placeholder="Nama usaha" value="${esc(v.nama_usaha ?? '')}" maxlength="255" class="${kelasInput}">
+                    <input data-f="jenis_usaha" placeholder="Jenis usaha (opsional)" value="${esc(v.jenis_usaha ?? '')}" maxlength="255" class="${kelasInput}">
+                </div>
+                <button type="button" data-hapus class="px-2 py-1 text-red-500 hover:bg-red-50 rounded-lg text-sm" title="Hapus">✕</button>`;
+            el('tagUsahaList').appendChild(div);
+            sinkronJumlah();
+        }
+
+        function tambahBarisKeluarga(v = {}) {
+            const div = document.createElement('div');
+            div.className = 'baris-kk flex items-start gap-2';
+            div.innerHTML = `
+                <div class="flex-1 grid grid-cols-2 gap-2">
+                    <input data-f="nama_kepala_keluarga" placeholder="Nama kepala keluarga" value="${esc(v.nama_kepala_keluarga ?? '')}" maxlength="255" class="${kelasInput} col-span-2">
+                    <input data-f="nomor_kk" inputmode="numeric" placeholder="Nomor KK (opsional)" value="${esc(v.nomor_kk ?? '')}" maxlength="20" class="${kelasInput}">
+                    <input data-f="jumlah_anggota" type="number" min="1" max="99" placeholder="Jml anggota" value="${esc(v.jumlah_anggota ?? '')}" class="${kelasInput}">
+                    <input data-f="nomor_urut_rumah_tangga" type="number" min="1" max="999" placeholder="No. urut rumah tangga" value="${esc(v.nomor_urut_rumah_tangga ?? '')}" class="${kelasInput}">
+                    <input data-f="nama_kepala_rumah_tangga" placeholder="Kepala rumah tangga" value="${esc(v.nama_kepala_rumah_tangga ?? '')}" maxlength="255" class="${kelasInput}">
+                </div>
+                <button type="button" data-hapus class="px-2 py-1 text-red-500 hover:bg-red-50 rounded-lg text-sm" title="Hapus">✕</button>`;
+            el('tagKkList').appendChild(div);
+            sinkronJumlah();
+        }
+
+        // Baris yang sama sekali kosong dibuang; selebihnya dikirim apa adanya (server yang memvalidasi).
+        function bacaBaris(wadahId) {
+            return [...el(wadahId).children].map(baris => {
+                const nilai = {};
+                baris.querySelectorAll('[data-f]').forEach(i => { nilai[i.dataset.f] = i.value.trim() === '' ? null : i.value.trim(); });
+                return nilai;
+            }).filter(n => Object.values(n).some(v => v !== null));
+        }
+
+        // Kalau ada daftar rinci, jumlah mengikuti daftar (dikunci); kalau kosong, jumlah boleh diisi manual.
+        function sinkronJumlah() {
+            [['tagUsahaList', 'tagUsaha'], ['tagKkList', 'tagKk']].forEach(([daftar, jumlah]) => {
+                const n = el(daftar).children.length;
+                const input = el(jumlah);
+                if (n > 0) { input.value = n; }
+                input.readOnly = n > 0;
+                input.classList.toggle('bg-slate-100', n > 0);
+            });
+        }
+
+        el('tagTambahUsaha').addEventListener('click', () => tambahBarisUsaha());
+        el('tagTambahKk').addEventListener('click', () => tambahBarisKeluarga());
+        ['tagUsahaList', 'tagKkList'].forEach(id => el(id).addEventListener('click', (e) => {
+            const b = e.target.closest('[data-hapus]');
+            if (b) { b.parentElement.remove(); sinkronJumlah(); }
+        }));
+
+        function bukaModalTag() {
+            el('modalTag').classList.remove('hidden');
+            setTimeout(() => el('tagNomor').focus(), 50);
+        }
+
+        function tutupModalTag() {
+            el('modalTag').classList.add('hidden');
+            hapusMarkerSementara();
+            formTag = null;
+        }
+
+        async function bukaFormTambah(latlng, opsi = { sumber: 'peta', akurasi: null }) {
+            const kegiatan = Number(kegiatanDipilih()) || null;
+            const sls = slsTerpilih ? Number(slsTerpilih) : null;
+
+            if (! bolehTaggingDi(kegiatan, sls)) {
+                toast('Pilih SLS penugasan Anda terlebih dulu.', true);
+                return;
+            }
+            if (titikDalamSls(latlng, sls) === false) {
+                toast('Titik di luar batas SLS. Letakkan titik di dalam batas SLS yang dipilih.', true);
+                return;
+            }
+
+            hapusMarkerSementara();
+            markerSementara = L.marker(latlng, {
+                interactive: false,
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div style="width:18px;height:18px;border-radius:50%;background:#7c3aed;border:3px solid #fff;box-shadow:0 0 0 2px #7c3aed,0 2px 6px rgba(0,0,0,.5)"></div>',
+                    iconSize: [18, 18], iconAnchor: [9, 9],
+                }),
+            }).addTo(map);
+
+            formTag = { mode: 'tambah', kegiatan, sls, lat: latlng.lat, lng: latlng.lng, sumber: opsi.sumber, akurasi: opsi.akurasi };
+
+            el('tagJudul').textContent = 'Tambah Titik Bangunan';
+            el('tagInfo').textContent = `${infoSlsAktif()} • ${latlng.lat.toFixed(7)}, ${latlng.lng.toFixed(7)}`
+                + (opsi.sumber === 'gps' && opsi.akurasi != null ? ` • GPS ±${opsi.akurasi} m` : ' • dari klik peta');
+            el('tagHapus').classList.add('hidden');
+            isiForm({ nomor: '', btt: false, bku: false, repair: false, kk: 0, usaha: 0 });
+            bukaModalTag();
+
+            // Usulan nomor berikutnya (nomor terbesar di SLS + 1); tidak menimpa kalau sudah diketik
+            try {
+                const res = await fetch(`${urlNomor}?kegiatan_id=${kegiatan}&sls_id=${sls}`, { headers: { 'Accept': 'application/json' } });
+                const j = await res.json();
+                if (formTag && formTag.mode === 'tambah' && ! el('tagNomor').value && j.nomor) el('tagNomor').value = j.nomor;
+            } catch (e) { /* usulan nomor opsional */ }
+        }
+
+        function bukaFormUbah(id) {
+            const d = cacheDetail[id];
+            if (! d) return;
+
+            map.closePopup();
+            formTag = { mode: 'ubah', id };
+
+            el('tagJudul').textContent = 'Ubah Titik Bangunan';
+            el('tagInfo').textContent = `${d.sls_tercatat?.id_sls ? 'SLS ' + d.sls_tercatat.id_sls : ''} • ${Number(d.latitude).toFixed(7)}, ${Number(d.longitude).toFixed(7)}`
+                + (d.akurasi_gps != null ? ` • GPS ±${Number(d.akurasi_gps).toFixed(1)} m` : '');
+            el('tagHapus').classList.toggle('hidden', ! d.dapat_dihapus);   // titik import tidak bisa dihapus dari sini
+            isiForm({
+                nomor: d.nomor_bangunan, kode: d.kode_bang_value, btt: d.flag_btt, bku: d.flag_bku,
+                repair: d.flag_repair, kk: d.jumlah_kk, usaha: d.jumlah_usaha,
+                usahaList: d.usaha_form, keluargaList: d.keluarga_form,
+            });
+            bukaModalTag();
+        }
+
+        async function kirimJson(url, method, body) {
+            const res = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json', 'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+
+            let json = {};
+            try { json = await res.json(); } catch (e) { /* bukan JSON (mis. sesi habis) */ }
+
+            if (! res.ok) {
+                const pertama = json.errors ? Object.values(json.errors)[0]?.[0] : null;
+                throw new Error(pertama || json.message || 'Gagal menyimpan. Muat ulang halaman lalu coba lagi.');
+            }
+            return json;
+        }
+
+        // Sinkronkan data titik di peta tanpa memuat ulang seluruh kegiatan
+        function terapkanFitur(fitur) {
+            if (! dataBangunanGeojson) return;
+            const arr = dataBangunanGeojson.features;
+            const i = arr.findIndex(x => x.properties.id === fitur.properties.id);
+            if (i >= 0) arr[i] = fitur; else arr.push(fitur);
+            hitungBergerombol(arr);
+            renderBangunan();
+        }
+
+        el('formTag').addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            if (! formTag) return;
+
+            const atribut = {
+                nomor_bangunan: el('tagNomor').value.trim(),
+                kode_bang_value: el('tagKode').value.trim() || null,
+                flag_btt: el('tagBtt').checked,
+                flag_bku: el('tagBku').checked,
+                flag_repair: el('tagRepair').checked,
+                jumlah_kk: Number(el('tagKk').value),
+                jumlah_usaha: Number(el('tagUsaha').value),
+                usaha: bacaBaris('tagUsahaList'),
+                keluarga: bacaBaris('tagKkList'),
+            };
+
+            el('tagSimpan').disabled = true;
+            try {
+                const hasil = formTag.mode === 'tambah'
+                    ? await kirimJson(urlTagging, 'POST', {
+                        kegiatan_id: formTag.kegiatan, sls_id: formTag.sls,
+                        latitude: formTag.lat, longitude: formTag.lng,
+                        sumber_tag: formTag.sumber, akurasi_gps: formTag.akurasi, ...atribut,
+                    })
+                    : await kirimJson(`${urlTagging}/${formTag.id}`, 'PATCH', atribut);
+
+                terapkanFitur(hasil.fitur);
+                if (formTag.mode === 'ubah') delete cacheDetail[formTag.id];   // popup memuat ulang detail terbaru
+                if (penugasanSaya.length && formTag.mode === 'tambah') {
+                    const p = penugasanSaya.find(x => x.kegiatan_id == formTag.kegiatan && x.sls_id == formTag.sls);
+                    if (p) { p.jumlah_titik++; p.titik_saya++; renderPenugasan(); }
+                }
+                tutupModalTag();
+                aturModeTagging();
+                toast(hasil.pesan);
+            } catch (e) {
+                tampilGalat(e.message);
+            } finally {
+                el('tagSimpan').disabled = false;
+            }
+        });
+
+        async function hapusTag(id) {
+            if (! confirm('Hapus titik bangunan ini? Tindakan ini tidak bisa dibatalkan.')) return;
+
+            try {
+                const hasil = await kirimJson(`${urlTagging}/${id}`, 'DELETE');
+                if (dataBangunanGeojson) {
+                    dataBangunanGeojson.features = dataBangunanGeojson.features.filter(x => x.properties.id !== id);
+                    hitungBergerombol(dataBangunanGeojson.features);
+                }
+                const d = cacheDetail[id];
+                if (d && penugasanSaya.length) {
+                    const p = penugasanSaya.find(x => x.kegiatan_id == d.kegiatan_id && x.sls_id == d.sls_id);
+                    if (p) { p.jumlah_titik = Math.max(0, p.jumlah_titik - 1); p.titik_saya = Math.max(0, p.titik_saya - 1); renderPenugasan(); }
+                }
+                tutupModalTag();
+                map.closePopup();
+                renderBangunan();
+                aturModeTagging();
+                toast(hasil.pesan);
+            } catch (e) {
+                toast(e.message, true);
+            }
+        }
+
+        el('tagBatal').addEventListener('click', tutupModalTag);
+        el('tagHapus').addEventListener('click', () => { if (formTag?.mode === 'ubah') hapusTag(formTag.id); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && ! el('modalTag').classList.contains('hidden')) tutupModalTag(); });
+
+        // Klik peta (saat Mode Tagging menyala) = titik baru di posisi itu
+        // Klik peta: hanya admin (koreksi/penempatan manual). Mitra wajib memakai GPS di lokasi.
+        map.on('click', (e) => {
+            if (modeGeser) {
+                if (tagBebas) konfirmasiGeserAdmin(e.latlng);   // petugas wajib GPS di lokasi, bukan klik peta
+                return;
+            }
+            if (! modeTaggingAktif()) return;
+            if (tagBebas) bukaFormTambah(e.latlng, { sumber: 'peta', akurasi: null });
+            else toast('Titik harus diambil lewat GPS di lokasi bangunan. Tekan "Ambil Lokasi Saya".', true);
+        });
+
+        // ================= AMBIL ULANG LOKASI (koreksi koordinat) =================
+        // Petugas: datang lagi ke bangunan lalu ambil GPS. Admin: klik posisi yang benar di peta. Server memeriksa posisi baru
+        // harus di dalam batas SLS, menyimpan koordinat awal dari file, dan menghitung ulang status luar batas.
+        function batalGeser() {
+            modeGeser = null;
+            hapusMarkerSementara();
+            gpsBerhenti();
+            map.getContainer().classList.remove('mode-tagging');
+        }
+
+        function mulaiGeser(id) {
+            const d = cacheDetail[id];
+            if (! d) return;
+            map.closePopup();
+            batalGeser();
+            modeGeser = { id, sls: Number(d.sls_id), nomor: d.nomor_bangunan };
+
+            if (tagBebas) {
+                map.getContainer().classList.add('mode-tagging');
+                toast(`Klik posisi yang benar untuk bangunan no. ${d.nomor_bangunan ?? '-'} di dalam batas SLS. Tekan Esc untuk batal.`);
+            } else {
+                toast(`Datangi bangunan no. ${d.nomor_bangunan ?? '-'}, tunggu akurasi GPS baik, lalu tekan "Gunakan lokasi ini".`);
+                gpsMulai();
+            }
+        }
+
+        function konfirmasiGeserAdmin(latlng) {
+            if (! modeGeser) return;
+            if (titikDalamSls(latlng, modeGeser.sls) === false) {
+                toast('Lokasi ini di luar batas SLS titik ini. Klik di dalam batas SLS.', true);
+                return;
+            }
+
+            hapusMarkerSementara();
+            markerSementara = L.marker(latlng, {
+                interactive: false,
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div style="width:18px;height:18px;border-radius:50%;background:#7c3aed;border:3px solid #fff;box-shadow:0 0 0 2px #7c3aed,0 2px 6px rgba(0,0,0,.5)"></div>',
+                    iconSize: [18, 18], iconAnchor: [9, 9],
+                }),
+            }).addTo(map);
+
+            setTimeout(() => {
+                if (modeGeser && confirm(`Simpan posisi ini sebagai lokasi bangunan no. ${modeGeser.nomor ?? '-'}?`)) kirimGeser(latlng, 'peta', null);
+                else hapusMarkerSementara();
+            }, 50);
+        }
+
+        async function kirimGeser(latlng, sumber, akurasi) {
+            const g = modeGeser;
+            if (! g) return;
+
+            try {
+                const hasil = await kirimJson(`${urlTagging}/${g.id}/geser`, 'PATCH', {
+                    latitude: latlng.lat, longitude: latlng.lng, sumber_tag: sumber, akurasi_gps: akurasi,
+                });
+                delete cacheDetail[g.id];
+                terapkanFitur(hasil.fitur);
+                batalGeser();
+                toast(hasil.pesan);
+            } catch (e) {
+                if (! tagBebas) batalGeser();    // GPS sudah berhenti: ulangi dari tombol Ambil ulang lokasi
+                else hapusMarkerSementara();
+                toast(e.message, true);
+            }
+        }
+
+        async function ubahStatusKoreksi(id, aksi) {
+            let body;
+            if (aksi === 'tolak') {
+                // prompt() mengembalikan null kalau dibatalkan; string kosong = tanpa alasan.
+                const alasan = prompt('Kembalikan titik ini ke status "perlu perbaikan"?\n\nTulis alasan / apa yang harus diperbaiki (opsional, terlihat oleh petugas):', '');
+                if (alasan === null) return;
+                body = { alasan: alasan.trim() };
+            }
+            try {
+                const hasil = await kirimJson(`${urlTagging}/${id}/${aksi}`, 'POST', body);
+                delete cacheDetail[id];
+                map.closePopup();
+                terapkanFitur(hasil.fitur);
+                toast(hasil.pesan);
+            } catch (e) {
+                toast(e.message, true);
+            }
+        }
+        const verifikasiTitik = (id) => ubahStatusKoreksi(id, 'verifikasi');
+        const kembalikanTitik = (id) => ubahStatusKoreksi(id, 'tolak');
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modeGeser) { batalGeser(); toast('Pengambilan ulang lokasi dibatalkan.'); }
+        });
+
+        // ----- Ambil lokasi GPS (live) + catat akurasi -----
+        function warnaAkurasi(m) {
+            return m <= 10 ? '#16a34a' : (m <= AKURASI_MAKS ? '#d97706' : '#dc2626');
+        }
+
+        function gpsBerhenti() {
+            if (gpsWatch !== null) { navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; }
+            if (gpsMarker) { map.removeLayer(gpsMarker); gpsMarker = null; }
+            if (gpsCircle) { map.removeLayer(gpsCircle); gpsCircle = null; }
+            gpsTerakhir = null;
+            el('gpsBar').classList.add('hidden');
+        }
+
+        function gpsMulai() {
+            if (! navigator.geolocation) { toast('Perangkat ini tidak mendukung GPS.', true); return; }
+            if (! window.isSecureContext) {
+                toast('GPS hanya bisa dipakai lewat HTTPS (atau localhost). Buka aplikasi lewat alamat HTTPS.', true);
+                return;
+            }
+
+            gpsBerhenti();
+            el('gpsAkurasi').textContent = '…';
+            el('gpsAkurasi').style.color = '#0f172a';
+            el('gpsStatus').textContent = 'Mencari sinyal GPS… tunggu hingga akurasi cukup baik.';
+            el('gpsGunakan').disabled = true;
+            el('gpsBar').classList.remove('hidden');
+
+            gpsWatch = navigator.geolocation.watchPosition(gpsTerima, gpsGalat, {
+                enableHighAccuracy: true, maximumAge: 0, timeout: 30000,
+            });
+        }
+
+        function gpsTerima(pos) {
+            const akurasi = pos.coords.accuracy;
+            const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
+
+            if (! gpsMarker) {
+                gpsMarker = L.circleMarker(ll, { radius: 7, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1, interactive: false }).addTo(map);
+                gpsCircle = L.circle(ll, { radius: akurasi, color: '#2563eb', weight: 1, fillColor: '#2563eb', fillOpacity: .12, interactive: false }).addTo(map);
+                map.setView(ll, Math.max(map.getZoom(), 19));
+            } else {
+                gpsMarker.setLatLng(ll);
+                gpsCircle.setLatLng(ll);
+                gpsCircle.setRadius(akurasi);
+            }
+
+            gpsTerakhir = { ll, akurasi };
+
+            const sls = modeGeser ? modeGeser.sls : (slsTerpilih ? Number(slsTerpilih) : null);
+            const dalam = titikDalamSls(ll, sls);   // true / false / null (tanpa polygon)
+            const cukupAkurat = akurasi <= AKURASI_MAKS;
+
+            let pesan;
+            if (! cukupAkurat) pesan = `Sinyal masih kasar (maksimal ±${AKURASI_MAKS} m). Tunggu sebentar atau pindah ke area terbuka.`;
+            else if (dalam === false) pesan = 'Posisi Anda berada di luar batas SLS yang dipilih. Pastikan Anda berada di dalam SLS tersebut.';
+            else pesan = 'Siap. Pastikan Anda berdiri di titik bangunan, lalu tekan "Gunakan lokasi ini".';
+
+            el('gpsAkurasi').textContent = `±${akurasi.toFixed(1)} m`;
+            el('gpsAkurasi').style.color = warnaAkurasi(akurasi);
+            el('gpsStatus').textContent = pesan;
+            el('gpsGunakan').disabled = ! (cukupAkurat && dalam !== false);
+        }
+
+        function gpsGalat(err) {
+            const pesan = {
+                1: 'Akses lokasi ditolak. Izinkan lokasi untuk situs ini di pengaturan browser.',
+                2: 'Lokasi tidak tersedia. Aktifkan GPS/lokasi pada perangkat.',
+                3: 'Waktu habis saat mencari sinyal GPS. Coba lagi di area terbuka.',
+            }[err.code] ?? 'Lokasi tidak bisa dibaca.';
+            gpsBerhenti();
+            toast(pesan, true);
+        }
+
+        function gpsGunakan() {
+            if (! gpsTerakhir) return;
+            const { ll, akurasi } = gpsTerakhir;
+            gpsBerhenti();
+            if (modeGeser) { kirimGeser(ll, 'gps', Math.round(akurasi * 10) / 10); return; }
+            bukaFormTambah(ll, { sumber: 'gps', akurasi: Math.round(akurasi * 10) / 10 });
+        }
+
+        el('btnLokasiSaya').addEventListener('click', () => { modeGeser = null; gpsMulai(); });
+        el('gpsBatal').addEventListener('click', () => { if (modeGeser) batalGeser(); else gpsBerhenti(); });
+        el('gpsGunakan').addEventListener('click', gpsGunakan);
+
+        // Unduh GeoJSON sesuai kegiatan & SLS yang sedang dipilih
+        el('btnExport').addEventListener('click', (e) => {
+            const p = new URLSearchParams();
+            if (kegiatanDipilih()) p.set('kegiatan_id', kegiatanDipilih());
+            if (slsTerpilih) p.set('sls_id', slsTerpilih);
+            if (el('exportCakupan')) p.set('cakupan', el('exportCakupan').value);
+            e.currentTarget.href = `${urlExport}${p.toString() ? '?' + p : ''}`;
+        });
+
         // ================= EVENT-EVENT =================
         document.getElementById('filterKegiatan').addEventListener('change', gantiKegiatan);
+
+        // Filter wilayah
+        document.getElementById('filterKecamatan').addEventListener('change', (e) => {
+            kecamatanTerpilih = e.target.value;
+            kelurahanTerpilih = '';
+            isiDropdownKelurahan();
+            terapkanWilayah();
+        });
+
+        document.getElementById('filterKelurahan').addEventListener('change', (e) => {
+            kelurahanTerpilih = e.target.value;
+            terapkanWilayah();
+        });
 
         function pilihDariList(id, label) {
             document.getElementById('filterSls').value = label;
@@ -898,8 +1971,13 @@
             }
         });
 
+        // Reset: kosongkan kecamatan, kelurahan, dan SLS sekaligus
         document.getElementById('resetSls').addEventListener('click', () => {
-            pilihDariList(null, '');
+            kecamatanTerpilih = '';
+            kelurahanTerpilih = '';
+            isiDropdownKecamatan();
+            document.getElementById('slsList').classList.add('hidden');
+            terapkanWilayah();
         });
 
         document.getElementById('layerSls').addEventListener('change', (e) => {
@@ -915,14 +1993,13 @@
         ['qcSorotLuar', 'qcSorotGerombol'].forEach(id =>
             document.getElementById(id).addEventListener('change', renderBangunan));
 
-        ['qcHanyaLuar', 'qcHanyaGerombol'].forEach(id =>
+        ['qcHanyaLuar', 'qcHanyaGerombol', 'qcHanyaPerbaikan'].forEach(id =>
             document.getElementById(id).addEventListener('change', () => {
                 renderBangunan();
                 zoomKeSls();
             }));
 
-        aturToggleQc(null);   // kondisi awal: belum ada kegiatan dipilih
-        muatSls();
+        aturToggleQc(null);   // kondisi awal: belum ada kegiatan dipilih (polygon dimuat saat kegiatan dipilih)
 
         // Buka dari dashboard: /peta?kegiatan=ID langsung memilih kegiatan itu
         const kegiatanAwal = new URLSearchParams(window.location.search).get('kegiatan');
@@ -931,5 +2008,8 @@
             pilihan.value = kegiatanAwal;
             if (pilihan.value === kegiatanAwal) gantiKegiatan();
         }
+
+        muatPenugasan();
+        aturModeTagging();
     </script>
 </x-app-layout>

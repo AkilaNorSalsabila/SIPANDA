@@ -55,6 +55,33 @@
     <div class="py-8">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
 
+            {{-- ================= PENUGASAN TAGGING (viewer) ================= --}}
+            @unless ($isAdmin)
+                @php
+                    $tugasSaya = \App\Models\PenugasanSls::where('user_id', auth()->id())->count();
+                @endphp
+                <div class="rounded-2xl border border-teal-200 bg-teal-50/70 p-5 flex flex-wrap items-center gap-4">
+                    <div class="min-w-0">
+                        <p class="text-sm font-bold text-teal-800">Tagging Titik Bangunan</p>
+                        <p class="text-xs text-slate-600 mt-0.5">
+                            @if ($tugasSaya > 0)
+                                Anda ditugaskan di <b>{{ $tugasSaya }} SLS</b>. Buka peta untuk mulai menandai titik bangunan.
+                            @else
+                                Belum ada SLS yang ditugaskan kepada Anda. Hubungi admin untuk mendapatkan penugasan.
+                            @endif
+                        </p>
+                    </div>
+                    <a href="{{ route('penugasan.saya') }}"
+                        class="ms-auto px-4 py-2 rounded-lg bg-white border border-teal-200 text-teal-700 hover:bg-teal-50 text-sm font-semibold transition">
+                        Lihat Penugasan
+                    </a>
+                    <a href="{{ route('peta.index', ['mode' => 'tagging']) }}"
+                        class="px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-sm transition">
+                        Mulai Tagging
+                    </a>
+                </div>
+            @endunless
+
             {{-- ================= PINTASAN ================= --}}
             <div class="flex flex-wrap items-center gap-2.5">
                 <a href="{{ route('peta.index') }}"
